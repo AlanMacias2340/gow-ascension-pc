@@ -41,7 +41,7 @@ ascension-recomp/
 
 1. **O executável.** Pegue o `PS3_GAME/USRDIR/EBOOT.BIN` da sua imagem de disco e decripte para `EBOOT.ELF`, com o RPCS3 (*Utilities › Decrypt PS3 Binaries*, com o firmware do console instalado) ou com `python tools/decrypt_self.py EBOOT.BIN -o EBOOT.ELF --keys <seu arquivo de chaves do scetool>`. A revisão de chave dele é `0x001C`.
 2. **Análise e tradução** com o pipeline do ps3recomp (`elf_parser.py`, `find_functions.py`, `extract_spu_images.py`, `ppu_loader.py`, `ppu_lifter.py`): os passos estão no [Getting Started](https://github.com/sp00nznet/ps3recomp/blob/master/docs/GETTING_STARTED.md) do ps3recomp, e os scripts deste repositório vão segui-los.
-3. **Build** com CMake e Ninja: no Windows com o Visual Studio 2022 (clang-cl); no macOS com o Apple clang (as ferramentas de linha de comando do Xcode) e `brew install cmake ninja sdl2 glslang spirv-cross`. As ferramentas em Python pedem a versão 3.10 ou mais nova.
+3. **Build** com CMake e Ninja: no Windows com o Visual Studio 2022 (clang-cl); no macOS com o Apple clang (as ferramentas de linha de comando do Xcode) e `brew install cmake ninja sdl2 glslang spirv-cross ffmpeg`, configurado com `-DPS3RECOMP_FFMPEG_RUNTIME=ON` para o `cellVdec` decodificar a cinemática de abertura (MPEG-2). As ferramentas em Python pedem a versão 3.10 ou mais nova.
 4. **Rodando.** No macOS, o `tools/run_mac.sh` monta a imagem do disco em `work/disc` e abre o jogo numa janela (na primeira vez, `ASCENSION_ISO=<caminho do .iso>`).
 
 ## Créditos
