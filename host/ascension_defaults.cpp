@@ -16,6 +16,12 @@
 //                      This title's SPU jobs fill a frame and patch the park
 //                      after `put` has moved; following it early skips the
 //                      frame.
+//   GCM_SEMA_ACQUIRE   a FIFO SEMAPHORE_ACQUIRE really waits. After each
+//                      frame's reports the GPU waits for the label the SPU
+//                      post-process tasks write when they finish the frame;
+//                      without the wait it runs ahead, RsxSync overwrites the
+//                      tasks' descriptor before the slow ones read it, and a
+//                      round loses its decrements.
 //
 // The OS environment is used directly, not getenv(): the boot harness routes
 // getenv through a cache that also remembers a miss, so asking first would pin
@@ -45,6 +51,7 @@ struct AscensionDefaults {
         set_default("PS3_EDGE_ZLIB_HLE", "1");
         set_default("RSX_LIVE_DRAW", "1");
         set_default("GCM_PARK_WAIT_MS", "2000");
+        set_default("GCM_SEMA_ACQUIRE", "1");
     }
 } s_defaults;
 
