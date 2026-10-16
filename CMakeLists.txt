@@ -222,6 +222,9 @@ if(WIN32)
         user32
         gdi32
         winmm
+        # The DXGI interface IDs (IID_IDXGIFactory6) the D3D12 backend asks
+        # for; clang-cl's lld-link found no other library that defines them.
+        dxguid
     )
 endif()
 
