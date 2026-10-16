@@ -1,7 +1,7 @@
 From f8a1d91f5878a3091fc9606c93790fb13e022847 Mon Sep 17 00:00:00 2001
 From: Arnaldo Lima <arnaldolimaof@gmail.com>
 Date: Fri, 16 Oct 2026 06:29:27 -0300
-Subject: [PATCH 06/11] Edge Zlib HLE: truncated output and the element's skip
+Subject: [PATCH 06/12] Edge Zlib HLE: truncated output and the element's skip
  offset
 
 edge_inflate now produces the first out_cap bytes of a stream that

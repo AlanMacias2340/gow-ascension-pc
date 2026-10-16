@@ -1,7 +1,7 @@
 From 3d4513f64290d8a892f2e7c14d2074728a44d881 Mon Sep 17 00:00:00 2001
 From: Arnaldo Lima <arnaldolimaof@gmail.com>
 Date: Thu, 15 Oct 2026 22:26:18 -0300
-Subject: [PATCH 02/11] cellGamePatchCheck, and LWCOND_TRACE
+Subject: [PATCH 02/12] cellGamePatchCheck, and LWCOND_TRACE
 
 cellGamePatchCheck answers NOTPATCH, as a disc boot is: God of War:
 Ascension (BCES01741) asks it at boot, and unregistered it had a faked

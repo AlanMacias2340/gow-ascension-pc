@@ -1,7 +1,7 @@
 From df9a192538f66226e0d414b00cf1706877051b64 Mon Sep 17 00:00:00 2001
 From: Arnaldo Lima <arnaldolimaof@gmail.com>
 Date: Thu, 15 Oct 2026 22:40:43 -0300
-Subject: [PATCH 03/11] _cellSpursLFQueuePushBody
+Subject: [PATCH 03/12] _cellSpursLFQueuePushBody
 
 The producer side of the ring cellSpursQueuePushBody models: written
 under the lock-line lock, then the task parked on the queue's line is
