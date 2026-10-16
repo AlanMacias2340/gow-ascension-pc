@@ -3,6 +3,7 @@
 /meta/
 /src/recomp/
 /src/gen/
+/src/spu/
 /data/keys
 # Local build output.
 /build/
