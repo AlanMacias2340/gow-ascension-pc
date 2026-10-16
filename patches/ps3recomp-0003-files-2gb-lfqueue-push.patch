@@ -1,0 +1,248 @@
+From f65324bcbd00cd05781326bea84cecb9e68e669f Mon Sep 17 00:00:00 2001
+From: Arnaldo Lima <arnaldolimaof@gmail.com>
+Date: Thu, 15 Oct 2026 22:40:43 -0300
+Subject: [PATCH] Files past 2 GB, and _cellSpursLFQueuePushBody
+
+cellFs: lseek, fstat and stat kept positions and sizes in long and struct
+stat, 32 bits on Windows: God of War: Ascension's RESOURCES.PSARC (2.1 GB)
+could not be mounted and its init failed. They go through 64-bit helpers
+now (_fseeki64/_ftelli64/_stat64; fseeko/ftello elsewhere). All 19 of the
+game's archives mount, the 9 GB one included.
+
+_cellSpursLFQueuePushBody: the producer half of the ring
+cellSpursQueuePushBody models (W0 pop, W1 push, modulo 2*W3), written under
+the lock-line lock with raw accesses (the vm_ accessors take that lock),
+then the task parked on the queue's line is woken
+(spu_signal_parked_on_line, as an LFQueue made on the SPURS names no
+taskset). The game's first SPU task now takes its first message.
+SPURS_LFQUEUE_NO_PUSH=1 makes it a no-op again.
+---
+ libs/spurs/cellSpurs.c     | 57 ++++++++++++++++++++++++++++++++
+ libs/spurs/cellSpurs.h     |  1 +
+ runtime/ppu/ppu_fs.cpp     | 67 +++++++++++++++++++++++++++++---------
+ runtime/spu/spu_workload.c | 17 ++++++++++
+ 4 files changed, 126 insertions(+), 16 deletions(-)
+
+diff --git a/libs/spurs/cellSpurs.c b/libs/spurs/cellSpurs.c
+index 042c35d..f32fea8 100644
+--- a/libs/spurs/cellSpurs.c
++++ b/libs/spurs/cellSpurs.c
+@@ -3352,6 +3352,63 @@ s32 _cellSpursLFQueueInitialize(u64 owner_ea, u64 queue_ea, u64 buffer_ea,
+     return CELL_OK;
+ }
+ 
++/* _cellSpursLFQueuePushBody(CellSpursLFQueue*, const void* buffer, bool isBlocking)
++ *
++ * The producer side of the ring cellSpursQueuePushBody models (see there and
++ * _cellSpursLFQueueInitialize): W0 at +0x00 the pop index, W1 at +0x04 the
++ * push index, both modulo 2*W3 (W3 at +0x0C the depth), the slot index mod W3,
++ * elements of +0x10 bytes from the buffer at +0x18. Written under the
++ * lock-line lock, and reserving SPUs are told, as the event flag does; then
++ * the task parked on this queue's line is woken. God of War: Ascension
++ * (BCES01741) feeds its first SPU task this way right after its init; with
++ * the import unregistered, the task waited forever. A full queue answers
++ * BUSY when not blocking, and waits for room when blocking.
++ * SPURS_LFQUEUE_NO_PUSH=1 makes it a logged no-op, as before. */
++s32 _cellSpursLFQueuePushBody(u64 queue_ea, u64 data_ea, u32 isBlocking)
++{
++    static int s_off = -1;
++    if (s_off < 0) s_off = getenv("SPURS_LFQUEUE_NO_PUSH") ? 1 : 0;
++    static int _n = 0;
++    if (!queue_ea || !data_ea) return CELL_SPURS_TASK_ERROR_NULL_POINTER;
++    if (s_off) return CELL_OK;
++
++    const uint32_t q = (uint32_t)queue_ea;
++    /* Raw big-endian access while the lock-line lock is held: the vm_ accessors
++     * take that same (non-recursive) lock. */
++    #define LFQ_R32(a) ((uint32_t)vm_base[(a)] << 24 | (uint32_t)vm_base[(a) + 1] << 16 | (uint32_t)vm_base[(a) + 2] << 8 | (uint32_t)vm_base[(a) + 3])
++    for (int attempt = 0;; attempt++) {
++        spu_lockline_lock();
++        int32_t  w0  = (int32_t)LFQ_R32(q + 0x00);
++        int32_t  w1  = (int32_t)LFQ_R32(q + 0x04);
++        int32_t  w3  = (int32_t)LFQ_R32(q + 0x0C);
++        uint32_t sz  = LFQ_R32(q + 0x10);
++        uint32_t buf = LFQ_R32(q + 0x1C);   /* low word of the u64 at +0x18 */
++        if (w3 <= 0 || !sz || !buf) { spu_lockline_unlock(); return CELL_SPURS_TASK_ERROR_INVAL; }
++        int32_t pop  = (w0 < 0) ? ~w0 : w0;
++        int32_t push = (w1 < 0) ? ~w1 : w1;
++        int32_t used = ((push - pop) % (2 * w3) + 2 * w3) % (2 * w3);
++        if (used < w3) {
++            uint32_t slot = (uint32_t)(push % w3);
++            memcpy(vm_base + buf + (size_t)slot * sz, vm_base + (uint32_t)data_ea, sz);
++            {   uint32_t v = (uint32_t)((push + 1) % (2 * w3));
++                vm_base[q + 4] = (uint8_t)(v >> 24); vm_base[q + 5] = (uint8_t)(v >> 16);
++                vm_base[q + 6] = (uint8_t)(v >> 8);  vm_base[q + 7] = (uint8_t)v; }
++            ef_line_end(q);
++            extern int spu_signal_parked_on_line(uint32_t line);
++            int woke = spu_signal_parked_on_line(q);
++            if (_n++ < 16)
++                printf("[cellSpurs] LFQueuePush#%d q=0x%08X slot=%u push %d->%d pop=%d used=%d depth=%d size=%u woke=%d\n",
++                       _n, q, slot, push, (push + 1) % (2 * w3), pop, used, w3, sz, woke);
++            return CELL_OK;
++        }
++        spu_lockline_unlock();
++        if (!isBlocking) return CELL_SPURS_TASK_ERROR_BUSY;
++        if (attempt == 0) printf("[cellSpurs] LFQueuePush q=0x%08X full (used=%d), waiting\n", q, used);
++        Sleep(1);
++    }
++    #undef LFQ_R32
++}
++
+ s32 cellSpursLFQueueAttachLv2EventQueue(u64 queue_ea)
+ {
+     static int _n = 0;
+diff --git a/libs/spurs/cellSpurs.h b/libs/spurs/cellSpurs.h
+index cbfc948..1f32be0 100644
+--- a/libs/spurs/cellSpurs.h
++++ b/libs/spurs/cellSpurs.h
+@@ -298,6 +298,7 @@ s32 cellSpursTasksetAttributeSetTasksetSize(CellSpursTasksetAttribute* attr, u32
+ s32 cellSpursQueueAttachLv2EventQueue(u64 queue_ea);
+ s32 _cellSpursLFQueueInitialize(u64 owner_ea, u64 queue_ea, u64 buffer_ea,
+                                 u32 size, u32 depth, u32 direction);
++s32 _cellSpursLFQueuePushBody(u64 queue_ea, u64 data_ea, u32 isBlocking);
+ s32 cellSpursLFQueueAttachLv2EventQueue(u64 queue_ea);
+ 
+ s32 cellSpursEventFlagSet(CellSpursEventFlag* eventFlag, u16 bits);
+diff --git a/runtime/ppu/ppu_fs.cpp b/runtime/ppu/ppu_fs.cpp
+index e8f6c2b..db0371f 100644
+--- a/runtime/ppu/ppu_fs.cpp
++++ b/runtime/ppu/ppu_fs.cpp
+@@ -38,6 +38,41 @@ extern "C" void ydkj_host_bt(const char* tag);
+ #define O_BINARY 0       /* POSIX has no text/binary distinction */
+ #endif
+ 
++/* File positions and sizes in 64 bits. On Windows `long` is 32 bits, so
++ * fseek/ftell/stat stop at 2 GB: God of War: Ascension's RESOURCES.PSARC
++ * (2,155,167,329 bytes) could not be mounted, and the game's init gave up. */
++static int host_fseek64(FILE* f, int64_t off, int origin)
++{
++#ifdef _WIN32
++    return _fseeki64(f, (__int64)off, origin);
++#else
++    return fseeko(f, (off_t)off, origin);
++#endif
++}
++static int64_t host_ftell64(FILE* f)
++{
++#ifdef _WIN32
++    return (int64_t)_ftelli64(f);
++#else
++    return (int64_t)ftello(f);
++#endif
++}
++/* stat() with a 64-bit size: 0 on success, the size and whether it is a
++ * directory written out. */
++static int host_stat64(const char* path, int64_t* size, int* is_dir)
++{
++#ifdef _WIN32
++    struct _stat64 st;
++    if (_stat64(path, &st) != 0) return -1;
++#else
++    struct stat st;
++    if (stat(path, &st) != 0) return -1;
++#endif
++    if (size) *size = (int64_t)st.st_size;
++    if (is_dir) *is_dir = (st.st_mode & S_IFMT) == S_IFDIR;
++    return 0;
++}
++
+ extern "C" uint8_t* vm_base;
+ extern "C" void ppu_guest_caller(char* out, size_t n);
+ extern "C" uint32_t ppu_vm_size;
+@@ -531,8 +566,8 @@ static void cellFsLseek(ppu_context* ctx)
+     if (getenv("FS_CALLER")) { char w[64]="?"; ppu_guest_caller(w,sizeof w);
+         fprintf(stderr, "[fs] lseek fd=%d off=%lld whence=%u  (by %s)\n", fd, (long long)off, wh, w); }
+     int worigin = (wh == CELL_FS_SEEK_END) ? SEEK_END : (wh == CELL_FS_SEEK_CUR) ? SEEK_CUR : SEEK_SET;
+-    fseek(g_files[fd], (long)off, worigin);
+-    long p = ftell(g_files[fd]);
++    host_fseek64(g_files[fd], off, worigin);
++    int64_t p = host_ftell64(g_files[fd]);
+     if (pos_ptr) vm_write64(pos_ptr, (uint64_t)p);
+     ctx->gpr[3] = CELL_OK;
+ }
+@@ -563,16 +598,16 @@ static void cellFsStat(ppu_context* ctx)
+     guest_strcpy(gpath, (uint32_t)ctx->gpr[3], sizeof gpath);
+     uint32_t sb = (uint32_t)ctx->gpr[4];
+     host_path(hpath, sizeof hpath, gpath);
+-    struct stat st;
+-    if (stat(hpath, &st) != 0) {
++    int64_t st_size = 0; int st_dir = 0;
++    if (host_stat64(hpath, &st_size, &st_dir) != 0) {
+         if (getenv("PS3_FSLOG")) fprintf(stderr, "[fs] stat '%s' -> ENOENT\n", gpath);
+         ctx->gpr[3] = (uint64_t)(int64_t)CELL_FS_ENOENT; return;
+     }
+-    if (getenv("PS3_FSLOG")) fprintf(stderr, "[fs] stat '%s' -> OK (size=%lld)\n", gpath, (long long)st.st_size);
+-    uint32_t mode = (st.st_mode & S_IFDIR) ? (CELL_FS_S_IFDIR | 0x1FF)
+-                                           : (CELL_FS_S_IFREG | 0x1B6);
+-    if (sb) write_stat(sb, mode, (uint64_t)st.st_size);
+-    if (getenv("PS3_FSLOG") && strstr(gpath,".toc")) fprintf(stderr,"[FSDBG] cellFsStat('%s') -> size=0x%llX\n",gpath,(unsigned long long)st.st_size);
++    if (getenv("PS3_FSLOG")) fprintf(stderr, "[fs] stat '%s' -> OK (size=%lld)\n", gpath, (long long)st_size);
++    uint32_t mode = st_dir ? (CELL_FS_S_IFDIR | 0x1FF)
++                           : (CELL_FS_S_IFREG | 0x1B6);
++    if (sb) write_stat(sb, mode, (uint64_t)st_size);
++    if (getenv("PS3_FSLOG") && strstr(gpath,".toc")) fprintf(stderr,"[FSDBG] cellFsStat('%s') -> size=0x%llX\n",gpath,(unsigned long long)st_size);
+     ctx->gpr[3] = CELL_OK;
+ }
+ 
+@@ -583,10 +618,10 @@ static void cellFsFstat(ppu_context* ctx)
+     if (fd < 0 || fd >= FS_MAX || !g_files[fd]) { ctx->gpr[3] = (uint64_t)(int64_t)CELL_FS_EIO; return; }
+     if (getenv("FS_CALLER")) { char w[64]="?"; ppu_guest_caller(w,sizeof w);
+         fprintf(stderr, "[fs] fstat fd=%d  (by %s)\n", fd, w); }
+-    long cur = ftell(g_files[fd]);
+-    fseek(g_files[fd], 0, SEEK_END);
+-    long sz = ftell(g_files[fd]);
+-    fseek(g_files[fd], cur, SEEK_SET);
++    int64_t cur = host_ftell64(g_files[fd]);
++    host_fseek64(g_files[fd], 0, SEEK_END);
++    int64_t sz = host_ftell64(g_files[fd]);
++    host_fseek64(g_files[fd], cur, SEEK_SET);
+     /* FS_FSTAT_CAP=<bytes>: DIAGNOSTIC. Report a smaller size than the file
+      * has. You Don't Know Jack reads a 100 KB archive whole but only probes
+      * (open/fstat/close) its 500 KB and 2.4 MB ones; if that branch is driven
+@@ -595,12 +630,12 @@ static void cellFsFstat(ppu_context* ctx)
+     { const char* cap = getenv("FS_FSTAT_CAP");
+       const char* only = getenv("FS_FSTAT_CAP_PATH");
+       if (cap && only && *only && !(g_fd_path[fd][0] && strstr(g_fd_path[fd], only))) cap = 0;
+-      if (cap) { long c = strtol(cap, 0, 0);
++      if (cap) { long long c = strtoll(cap, 0, 0);
+           if (c > 0 && sz > c) {
+-              fprintf(stderr, "[fs] fstat fd=%d size %ld -> capped %ld (FS_FSTAT_CAP)\n", fd, sz, c);
++              fprintf(stderr, "[fs] fstat fd=%d size %lld -> capped %lld (FS_FSTAT_CAP)\n", fd, (long long)sz, c);
+               sz = c; } } }
+     if (sb) write_stat(sb, CELL_FS_S_IFREG | 0x1B6, (uint64_t)sz);
+-    if (getenv("PS3_FSLOG")) { static int _n=0; if(_n++<12) fprintf(stderr,"[FSDBG] cellFsFstat(fd=%d) -> size=0x%lX\n",fd,sz); }
++    if (getenv("PS3_FSLOG")) { static int _n=0; if(_n++<12) fprintf(stderr,"[FSDBG] cellFsFstat(fd=%d) -> size=0x%llX\n",fd,(unsigned long long)sz); }
+     ctx->gpr[3] = CELL_OK;
+ }
+ 
+diff --git a/runtime/spu/spu_workload.c b/runtime/spu/spu_workload.c
+index 6a19d5b..6472986 100644
+--- a/runtime/spu/spu_workload.c
++++ b/runtime/spu/spu_workload.c
+@@ -998,6 +998,23 @@ int spu_taskset_signal_parked_obj(uint32_t taskset_ea, uint32_t wait_obj)
+     return n;
+ }
+ 
++/* Signal every parked task whose wait object lies in the 128-byte line
++ * `line`, whatever its taskset. A queue whose eaSignal names the SPURS
++ * instance rather than a taskset (an LFQueue made on the SPURS) is waited on
++ * through its own line: God of War: Ascension's task waits with the object
++ * 0x15E66A85 on the queue at 0x15E66A80. Returns how many. */
++int spu_signal_parked_on_line(uint32_t line)
++{
++    int n = 0;
++    for (int i = 0; i < SPU_PARKED_MAX; i++) {
++        uint64_t k = s_parked[i];
++        if (!k || !s_parked_obj[i] || (s_parked_obj[i] & ~127u) != (line & ~127u)) continue;
++        spu_taskset_signal_task((uint32_t)(k >> 32), (uint32_t)(k & 0xFFFFFFFFu) - 1u);
++        n++;
++    }
++    return n;
++}
++
+ /* Deliver a signal to a task (callable from any PPU/host thread). */
+ void spu_taskset_signal_task(uint32_t taskset_ea, uint32_t taskId)
+ {
+-- 
+2.55.0.windows.5
+
