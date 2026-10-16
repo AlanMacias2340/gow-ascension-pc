@@ -4,6 +4,9 @@
 /src/recomp/
 /src/gen/
 /src/spu/
+/src/recomp.*/
+# The emulated HDD (saves, game data) the runs write.
+/gamedata/
 /data/keys
 # Local build output.
 /build/
