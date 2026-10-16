@@ -1,8 +1,8 @@
-From 43e30c4894a5307a5aeb6376cb12641b9f7d1879 Mon Sep 17 00:00:00 2001
+From fb3320a856aafd128b9a9ed0d0f1d82e5491d8dd Mon Sep 17 00:00:00 2001
 From: Arnaldo Lima <arnaldolimaof@gmail.com>
 Date: Thu, 15 Oct 2026 22:09:31 -0300
-Subject: [PATCH] cellSpurs: the second-generation entry points God of War:
- Ascension calls
+Subject: [PATCH 01/10] cellSpurs: the second-generation entry points God of
+ War: Ascension calls
 
 cellSpursInitializeWithAttribute2 and cellSpursCreateTaskset2 forward to
 the first-generation ones (CreateTaskset2 with the attribute's taskset
@@ -15,10 +15,10 @@ accepted and changes nothing, as the other attribute switches are.
  2 files changed, 66 insertions(+)
 
 diff --git a/libs/spurs/cellSpurs.c b/libs/spurs/cellSpurs.c
-index 5e3b510..042c35d 100644
+index 015913a..29fdefa 100644
 --- a/libs/spurs/cellSpurs.c
 +++ b/libs/spurs/cellSpurs.c
-@@ -497,6 +497,16 @@ s32 cellSpursInitializeWithAttribute(CellSpurs* spurs,
+@@ -555,6 +555,16 @@ s32 cellSpursInitializeWithAttribute(CellSpurs* spurs,
      return spurs_initialize_common(spurs_ea, attr->nSpus, (const char*)attr->prefix);
  }
  
@@ -35,7 +35,7 @@ index 5e3b510..042c35d 100644
  static void spurs_cancel_attached_queues(u32 spurs_ea);  /* defined with the queue table */
  
  s32 cellSpursFinalize(CellSpurs* spurs)
-@@ -591,6 +601,19 @@ s32 cellSpursAttributeEnableSpuPrintfIfAvailable(CellSpursAttribute* attr)
+@@ -646,6 +656,19 @@ s32 cellSpursAttributeEnableSpuPrintfIfAvailable(CellSpursAttribute* attr)
      return CELL_OK;
  }
  
@@ -55,8 +55,8 @@ index 5e3b510..042c35d 100644
  s32 cellSpursGetNumSpuThread(const CellSpurs* spurs, u32* nThreads)
  {
      if (!spurs || !nThreads)
-@@ -793,6 +816,22 @@ s32 cellSpursCreateTasksetWithAttribute(CellSpurs* spurs,
-     return cellSpursCreateTaskset(spurs, taskset, 0, NULL, 0);
+@@ -901,6 +924,22 @@ s32 cellSpursCreateTasksetWithAttribute(CellSpurs* spurs,
+     return spurs_create_taskset(spurs, taskset, 0, NULL, 0, size);
  }
  
 +/* (spurs, taskset2, attr2): the second-generation taskset, made as the first
@@ -78,7 +78,7 @@ index 5e3b510..042c35d 100644
  s32 cellSpursDestroyTaskset(CellSpursTaskset* taskset)
  {
      taskset = GUEST_PTR(taskset, CellSpursTaskset*);
-@@ -1151,6 +1190,25 @@ s32 _cellSpursTasksetAttributeInitialize(CellSpursTasksetAttribute* attr,
+@@ -1261,6 +1300,25 @@ s32 _cellSpursTasksetAttributeInitialize(CellSpursTasksetAttribute* attr,
      return CELL_OK;
  }
  
@@ -105,10 +105,10 @@ index 5e3b510..042c35d 100644
                        s32* exitCode)
  {
 diff --git a/libs/spurs/cellSpurs.h b/libs/spurs/cellSpurs.h
-index a537581..cbfc948 100644
+index fd480dd..137a2e7 100644
 --- a/libs/spurs/cellSpurs.h
 +++ b/libs/spurs/cellSpurs.h
-@@ -197,6 +197,14 @@ s32 cellSpursAttributeSetNamePrefix(CellSpursAttribute* attr,
+@@ -211,6 +211,14 @@ s32 cellSpursAttributeSetNamePrefix(CellSpursAttribute* attr,
  s32 cellSpursAttributeSetSpuThreadGroupType(CellSpursAttribute* attr,
                                              s32 type);
  s32 cellSpursAttributeEnableSpuPrintfIfAvailable(CellSpursAttribute* attr);
@@ -124,5 +124,5 @@ index a537581..cbfc948 100644
  s32 cellSpursGetNumSpuThread(const CellSpurs* spurs, u32* nThreads);
  s32 cellSpursSetMaxContention(CellSpurs* spurs, CellSpursWorkloadId wid,
 -- 
-2.55.0.windows.5
+2.50.1 (Apple Git-155)
 

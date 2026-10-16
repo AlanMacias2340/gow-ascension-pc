@@ -1,7 +1,8 @@
-From 7146a636852c6c0a1d87f98fed5ef90538ac5dc5 Mon Sep 17 00:00:00 2001
+From f8a1d91f5878a3091fc9606c93790fb13e022847 Mon Sep 17 00:00:00 2001
 From: Arnaldo Lima <arnaldolimaof@gmail.com>
 Date: Fri, 16 Oct 2026 06:29:27 -0300
-Subject: [PATCH] Edge Zlib HLE: truncated output and the element's skip offset
+Subject: [PATCH 06/10] Edge Zlib HLE: truncated output and the element's skip
+ offset
 
 edge_inflate now produces the first out_cap bytes of a stream that
 decodes to more, as the SPU decompressor does, instead of failing.
@@ -94,10 +95,10 @@ index 3966f66..93a1698 100644
              written = (uint32_t)n;
          } else {
 diff --git a/libs/spurs/cellSpurs.c b/libs/spurs/cellSpurs.c
-index dde3a22..4bbe949 100644
+index cf5eed0..2be6e55 100644
 --- a/libs/spurs/cellSpurs.c
 +++ b/libs/spurs/cellSpurs.c
-@@ -3443,8 +3443,15 @@ s32 _cellSpursLFQueuePushBody(u64 queue_ea, u64 data_ea, u32 isBlocking)
+@@ -3512,8 +3512,15 @@ s32 _cellSpursLFQueuePushBody(u64 queue_ea, u64 data_ea, u32 isBlocking)
       *   +0x08 compressed size   +0x0C output capacity
       *   +0x10 the request's busy counter (+0x28), low bits used as flags
       *   +0x14 an event flag     +0x18 its bits in the upper halfword
@@ -114,7 +115,7 @@ index dde3a22..4bbe949 100644
      { static int s_edge = -1;
        if (s_edge < 0) s_edge = getenv("PS3_EDGE_ZLIB_HLE") ? 1 : 0;
        if (s_edge) {
-@@ -3454,12 +3461,25 @@ s32 _cellSpursLFQueuePushBody(u64 queue_ea, u64 data_ea, u32 isBlocking)
+@@ -3523,12 +3530,25 @@ s32 _cellSpursLFQueuePushBody(u64 queue_ea, u64 data_ea, u32 isBlocking)
            const uint32_t counter = vm_read32(e + 0x10) & ~3u;
            const uint32_t flag = vm_read32(e + 0x14);
            const u16 bits = (u16)(vm_read32(e + 0x18) >> 16);
@@ -146,5 +147,5 @@ index dde3a22..4bbe949 100644
                if (left) vm_write32(counter, left - 1u);
                if (left == 1u && flag && bits)
 -- 
-2.55.0.windows.5
+2.50.1 (Apple Git-155)
 

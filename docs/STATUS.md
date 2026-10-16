@@ -1,6 +1,6 @@
 # Status
 
-Where the experiment stands. Machine: Windows 11, AMD Ryzen 7 5700G, Radeon RX 7600, 16 GB.
+Where the experiment stands. Machines: Windows 11, AMD Ryzen 7 5700G, Radeon RX 7600, 16 GB; and a Mac, Apple M4, 16 GB, macOS 26.
 
 | Step | State |
 | --- | --- |
@@ -13,10 +13,11 @@ Where the experiment stands. Machine: Windows 11, AMD Ryzen 7 5700G, Radeon RX 7
 | PPU lifting | **Done:** 19,569 functions, 1.8 million lines of C++ (126 MB) in 12 units of 150,000 lines (`--chunk-lines 150000`, so each fits a 16 GB machine), no unknown instruction, 62 jump tables, 676 mid-function entries, 345 import stubs as HLE calls. `--toc 0x81EF60 --code-end 0x62C4CC`; about 20 s. |
 | Build | **Done:** `AscensionRecomp.exe`, 55 MB, clang-cl and Ninja with `-j 4`. The project is ps3recomp's `templates/project`, pointed at `../ps3recomp`, `src/recomp` and `src/spu`, plus `dxguid` (the D3D12 backend's DXGI interface IDs). |
 | Boot | **The intro screens render.** The legal text, "Sony Computer Entertainment presents", the Santa Monica Studio logo and the online-play notice are drawn correctly (live draw engine, `host/ascension_defaults.cpp`). The game loop then stops at the second frame of the main renderer (see Next). |
+| macOS | **The same intro screens, through Metal.** The lift and build are the same as on Windows (Homebrew CMake, Ninja, SDL2, glslang and spirv-cross; Apple clang). The live draw engine is Windows-only, but ps3recomp's Metal backend runs the game's own shaders and draws the intro correctly; the run stops at the same frame. `tools/run_mac.sh` runs it in a window; `PS3RECOMP_METAL_HEADLESS=1` without one, and `PS3RECOMP_METAL_FRAME_DUMP=<dir>/f%u.ppm` saves every 120th frame. |
 
 ## ps3recomp changes
 
-On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.com/arnaldolima1/ps3recomp/tree/ascension), the checkout `../ps3recomp` should be on (also kept as `patches/`): `cellSpursInitializeWithAttribute2`, `cellSpursCreateTask2`, `_cellSpursTaskAttribute2Initialize`, `cellSpursCreateTaskset2`, `_cellSpursTasksetAttribute2Initialize`, `cellSpursAttributeEnableSystemWorkload`, `cellGcmMapEaIoAddressWithFlags`; the `sys_lwcond_t` layout; `cellGamePatchCheck`; files past 2 GB; `_cellSpursLFQueuePushBody`; Edge Zlib on the host (with truncated output and the skip offset); the GCM offset tables written through to the guest; the SPU microstep and interpreter fixes; FIFO parks waited on; SPURS2's 32 workloads. The build regenerates the NID table whenever ps3recomp's library sources change (`CMakeLists.txt`).
+On the branch [`ascension-v0.15` of the fork `arnaldolima1/ps3recomp`](https://github.com/arnaldolima1/ps3recomp/tree/ascension-v0.15), ten commits on ps3recomp v0.15.0, the checkout `../ps3recomp` should be on (also kept as `patches/`): `cellSpursInitializeWithAttribute2`, `cellSpursCreateTask2`, `_cellSpursTaskAttribute2Initialize`, `cellSpursCreateTaskset2`, `_cellSpursTasksetAttribute2Initialize`, `cellSpursAttributeEnableSystemWorkload`; `cellGamePatchCheck`; `_cellSpursLFQueuePushBody`; Edge Zlib on the host (with truncated output and the skip offset); the GCM offset tables written through to the guest; SPURS2's 32 workloads and flags1, ported onto v0.15.0's per-SPU scheduler; `GCM_PARK_WAIT_MS` (this title sets 2000 ms); the macOS window fix (the guest runs off the main thread, so AppKit can serve the window) and numbered Metal frame dumps; diagnostics (`SPURS_KICKLOG`, `SPURS_WLDUMP`, `SPU_PCWATCH`, `LWCOND_TRACE`). Upstream fixed the `sys_lwcond_t` layout, files past 2 GB, `cellGcmMapEaIoAddressWithFlags`, the SPU microstep and interpreter hand-back, parked FIFOs and GET_REPORT into main memory on its own (#248, #256, #266, #268, #277, #312), so the rebase took its versions. The older branch `ascension` (on v0.14.0) is kept as it was. The build regenerates the NID table whenever ps3recomp's library sources change (`CMakeLists.txt`).
 
 ## Next
 
@@ -55,7 +56,7 @@ On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.
 - **Asynchronous file reads** (`cellFsAio*`) and **memory mapping** (`sys_mmapper_*`).
 - About 140 imports are network and online (`sceNp*`, `cellHttp`, `cellSsl`, `sys_net`, `cellVoice`, `cellNetCtl`): multiplayer, answered offline.
 
-ps3recomp: `master` at `a2c20108` (v0.14.0).
+ps3recomp: `master` at `0fe7dbf` (v0.15.0).
 
 ## What to expect
 

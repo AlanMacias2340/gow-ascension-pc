@@ -11,6 +11,11 @@
 //                      records none of this title's draws (every present
 //                      had draws=0: a black window); the live engine draws
 //                      the intro screens correctly.
+//   GCM_PARK_WAIT_MS   how long a parked FIFO waits to be patched before the
+//                      runtime follows `put` (ps3recomp's default is 50 ms).
+//                      This title's SPU jobs fill a frame and patch the park
+//                      after `put` has moved; following it early skips the
+//                      frame.
 //
 // The OS environment is used directly, not getenv(): the boot harness routes
 // getenv through a cache that also remembers a miss, so asking first would pin
@@ -39,6 +44,7 @@ struct AscensionDefaults {
     {
         set_default("PS3_EDGE_ZLIB_HLE", "1");
         set_default("RSX_LIVE_DRAW", "1");
+        set_default("GCM_PARK_WAIT_MS", "2000");
     }
 } s_defaults;
 
