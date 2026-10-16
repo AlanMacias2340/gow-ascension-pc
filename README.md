@@ -44,7 +44,7 @@ ascension-recomp/
 ## Credits
 
 - [ps3recomp](https://github.com/sp00nznet/ps3recomp) by sp00nznet and contributors: the recompiler, runtime and system libraries.
-- `tools/decrypt_self.py` is taken unchanged from [Twisted Metal](https://github.com/sp00nznet/twistedmetal)'s port (MIT).
+- `tools/decrypt_self.py` comes from [Twisted Metal](https://github.com/sp00nznet/twistedmetal)'s port (MIT), adapted to read newer scetool key files.
 - God of War is a trademark of Sony Interactive Entertainment. This is an unofficial project.
 
 ## License

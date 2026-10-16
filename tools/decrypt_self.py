@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-# Taken unchanged from sp00nznet/twistedmetal (MIT, https://github.com/sp00nznet/twistedmetal),
-# tools/decrypt_self.py. Keys are not included: pass --keys or set PS3_KEYS.
+# From sp00nznet/twistedmetal (MIT, https://github.com/sp00nznet/twistedmetal),
+# tools/decrypt_self.py; it also reads newer scetool key files. Keys are not
+# included: pass --keys or set PS3_KEYS.
 """Decrypt a retail PS3 SELF into a plain ELF.
 
 Twisted Metal's EBOOT.BIN is a non-NPDRM disc SELF (key revision 0x16,
@@ -44,6 +45,13 @@ def parse_keys(text):
         elif '=' in line and cur is not None:
             k, _, v = line.partition('=')
             cur[k.strip()] = v.strip()
+    # Newer scetool key files say category= and program_type= where the
+    # older ones say type= and self_type=.
+    for e in entries:
+        if 'category' in e:
+            e.setdefault('type', e['category'])
+        if 'program_type' in e:
+            e.setdefault('self_type', e['program_type'])
     return entries
 
 
