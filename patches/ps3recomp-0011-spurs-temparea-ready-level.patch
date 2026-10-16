@@ -1,7 +1,7 @@
 From 37dfb318037b90961ebba39b656727f9caf55fd5 Mon Sep 17 00:00:00 2001
 From: Arnaldo Lima <arnaldolimaof@gmail.com>
 Date: Fri, 16 Oct 2026 11:59:31 -0300
-Subject: [PATCH 11/12] SPURS kernel tempArea; SPURS_READY_LEVEL; Wws
+Subject: [PATCH 11/13] SPURS kernel tempArea; SPURS_READY_LEVEL; Wws
  diagnostics
 
 - SpursKernelContext.tempArea (LS 0x100..0x17F) now holds the first 128

@@ -1,7 +1,7 @@
 From 3045258e07a2a565999afbd9d34e0ec38aac61b2 Mon Sep 17 00:00:00 2001
 From: Arnaldo Lima <arnaldolimaof@gmail.com>
 Date: Fri, 16 Oct 2026 06:50:44 -0300
-Subject: [PATCH 07/12] GCM: GCM_PARK_WAIT_MS overrides the park grace;
+Subject: [PATCH 07/13] GCM: GCM_PARK_WAIT_MS overrides the park grace;
  HOTREAD16 names the reader
 
 Upstream waits GCM_PARK_GRACE_MS (50 ms) for a parked FIFO to be patched
