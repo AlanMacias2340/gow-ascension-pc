@@ -28,6 +28,12 @@
 //                      post-process ACQUIRE: the game relies on the RSX taking
 //                      a frame's time, and without the hold frame 2's reports
 //                      landed while round 1 still ran, so round 2 never began.
+//   SPURS_READY_LEVEL  readyCount is a level, as the real kernel treats it.
+//                      The Wws job managers zero their own count once their
+//                      jobs are stored; consuming it per admission left
+//                      RsxSync's round-2 job unrun until a later kick, which
+//                      never came (the render thread waits on frame slot
+//                      0x99AAC8 for it).
 //
 // The OS environment is used directly, not getenv(): the boot harness routes
 // getenv through a cache that also remembers a miss, so asking first would pin
@@ -59,6 +65,7 @@ struct AscensionDefaults {
         set_default("GCM_PARK_WAIT_MS", "2000");
         set_default("GCM_SEMA_ACQUIRE", "1");
         set_default("GCM_PARK_SPU_HOLD_MS", "1000");
+        set_default("SPURS_READY_LEVEL", "1");
     }
 } s_defaults;
 
