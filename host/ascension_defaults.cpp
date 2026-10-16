@@ -22,6 +22,12 @@
 //                      without the wait it runs ahead, RsxSync overwrites the
 //                      tasks' descriptor before the slow ones read it, and a
 //                      round loses its decrements.
+//   GCM_PARK_SPU_HOLD_MS  a park the vblank handler has patched (the next
+//                      frame's segment) is held while SPURS tasks are still
+//                      running, up to this long. The first frame has no
+//                      post-process ACQUIRE: the game relies on the RSX taking
+//                      a frame's time, and without the hold frame 2's reports
+//                      landed while round 1 still ran, so round 2 never began.
 //
 // The OS environment is used directly, not getenv(): the boot harness routes
 // getenv through a cache that also remembers a miss, so asking first would pin
@@ -52,6 +58,7 @@ struct AscensionDefaults {
         set_default("RSX_LIVE_DRAW", "1");
         set_default("GCM_PARK_WAIT_MS", "2000");
         set_default("GCM_SEMA_ACQUIRE", "1");
+        set_default("GCM_PARK_SPU_HOLD_MS", "1000");
     }
 } s_defaults;
 
