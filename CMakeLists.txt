@@ -163,8 +163,11 @@ if(PORT_ENABLE_SPU)
 endif()
 
 add_executable(${PROJECT_NAME}
-    main.cpp
-    stubs.cpp
+    # ps3recomp's full boot harness, as the Twisted Metal port builds it, not
+    # the template's minimal main.cpp: it adds the vblank ticker the GCM
+    # waits need, the hang watchdog, the PS3_DEBUG console and the
+    # PARAM.SFO read at boot.
+    "${PS3RECOMP_DIR}/runtime/ppu/tests/boot_main.cpp"
     ${PS3RECOMP_SCAFFOLD}
     ${HLE_NID_TABLE}
     ${RECOMP_SOURCES}
