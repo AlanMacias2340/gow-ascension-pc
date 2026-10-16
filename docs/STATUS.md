@@ -12,17 +12,18 @@ Where the experiment stands. Machine: Windows 11, AMD Ryzen 7 5700G, Radeon RX 7
 | SPU images | **Done:** only 4 embedded (176 KB, `extract_spu_images.py`), lifted and registered by fingerprint (`build_spu_workloads.py`; 91% of their bytes are code, the rest data in `.text`). The SPURS jobs the game runs most likely come from its data archives (`*.PSARC`): to be looked at. |
 | PPU lifting | **Done:** 19,569 functions, 1.8 million lines of C++ (126 MB) in 12 units of 150,000 lines (`--chunk-lines 150000`, so each fits a 16 GB machine), no unknown instruction, 62 jump tables, 676 mid-function entries, 345 import stubs as HLE calls. `--toc 0x81EF60 --code-end 0x62C4CC`; about 20 s. |
 | Build | **Done:** `AscensionRecomp.exe`, 55 MB, clang-cl and Ninja with `-j 4`. The project is ps3recomp's `templates/project`, pointed at `../ps3recomp`, `src/recomp` and `src/spu`, plus `dxguid` (the D3D12 backend's DXGI interface IDs). |
-| Boot | **Into the renderer.** Run with `PS3_EDGE_ZLIB_HLE=1`. The Edge Zlib inflate queue is serviced on the host (about 10,000 blocks in 90 s), so the game goes on: network and NP (offline), save profiles, GCM (11 tiles, Z-cull, three 1280x720 display buffers), the pad, `IntroLoaderThread`, and fifteen `Wws_Job` workloads whose policy module is now lifted. Then its renderer ("Ice") fails to unmap an IO range (`MemTable entry not found`, `Ice::Render::UnmapMainMemory (0x05200000) failed`, after `iooffset == -1`), and a thread spins reading `0x200032EC`. No frame yet. |
+| Boot | **The game loop runs.** Run with `PS3_EDGE_ZLIB_HLE=1`. Past the intro loader (which streams its compressed WADs and then frees its memory cleanly), the `Wws_Job` jobs load and run on the SPU, the renderer sets shaders, render targets, textures and blending through the D3D12 backend, and the vblank/flip event loop ticks. No frame on screen confirmed yet. |
 
 ## ps3recomp changes
 
-On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.com/arnaldolima1/ps3recomp/tree/ascension), the checkout `../ps3recomp` should be on (also kept as `patches/`): `cellSpursInitializeWithAttribute2`, `cellSpursCreateTask2`, `_cellSpursTaskAttribute2Initialize`, `cellGcmMapEaIoAddressWithFlags`, Edge Zlib on the host,, `cellSpursCreateTaskset2`, `_cellSpursTasksetAttribute2Initialize` and `cellSpursAttributeEnableSystemWorkload`; the `sys_lwcond_t` layout; `cellGamePatchCheck`; files past 2 GB; `_cellSpursLFQueuePushBody`. The build regenerates the NID table whenever ps3recomp's library sources change (`CMakeLists.txt`).
+On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.com/arnaldolima1/ps3recomp/tree/ascension), the checkout `../ps3recomp` should be on (also kept as `patches/`): `cellSpursInitializeWithAttribute2`, `cellSpursCreateTask2`, `_cellSpursTaskAttribute2Initialize`, `cellSpursCreateTaskset2`, `_cellSpursTasksetAttribute2Initialize`, `cellSpursAttributeEnableSystemWorkload`, `cellGcmMapEaIoAddressWithFlags`; the `sys_lwcond_t` layout; `cellGamePatchCheck`; files past 2 GB; `_cellSpursLFQueuePushBody`; Edge Zlib on the host (with truncated output and the skip offset); the GCM offset tables written through to the guest; the SPU microstep and interpreter fixes. The build regenerates the NID table whenever ps3recomp's library sources change (`CMakeLists.txt`).
 
 ## Next
 
-- **GCM IO mapping.** The renderer maps its IO range with `cellGcmMapEaIoAddressWithFlags` (now forwarded to `cellGcmMapEaIoAddress`), still reports `iooffset == -1`, and later `cellGcmUnmapIoAddress(0x05200000)` fails. Compare the offset table ps3recomp builds with the offsets the game asks for (`cellGcmAddressToOffset`, `cellGcmIoOffsetToAddress`).
-- Then what reads `0x200032EC` in a loop (`[HOTREAD16]`), and the NULL reads in `func_00375744`.
-- The LFQueue protocol itself (see below) is no longer on the path while Edge Zlib runs on the host; it matters again for any other queue the game feeds an SPU through.
+- **The first frame.** Check whether the flips present anything (screenshot), and what the renderer draws in the first seconds.
+- The idle `Wws_Job` policy module logs every poll (`[spurs-pm] poll`, `[mfc-list] RESUME-ELEMS`): about 10 MB in 110 s. Quiet it before longer runs.
+- Streamed WADs are inflated again from the start for every piece (each request skips what it already has): fine for headers, slow for large files. Cache the inflate state per stream if it shows up.
+- The LFQueue protocol itself is not on the path while Edge Zlib runs on the host; it matters again for any other queue the game feeds an SPU through.
 
 ## Found so far
 
@@ -33,6 +34,10 @@ On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.
 - **Files past 2 GB (ps3recomp bug, Windows):** `cellFsLseek`, `cellFsFstat` and `cellFsStat` used `long` and `struct stat`, 32 bits on Windows. `RESOURCES.PSARC` (2.1 GB) failed to mount with -139 and the init gave up. Fixed with 64-bit helpers.
 - **`_cellSpursLFQueuePushBody`** was missing: the PPU's first message to its SPU task never arrived. Implemented on the ring model ps3recomp derived from another title's consumer, under the lock-line lock; the message arrives and wakes the task, but the model does not match this game's consumer (see Next).
 - **How the init failure was found:** a temporary `fprintf` after every call in the lifted `func_002AC3D8` (generated code, not kept) showed the archive-mount call returning -139 on the fourth archive.
+
+- **Edge Zlib streaming:** the queue element has an output skip at +0x24 (also the low half of +0x18). The intro loader reads a compressed WAD as a 64-byte chunk header, then its payload, then the next header, each time inflating the same stream and skipping what it already has. Ignored, the first header (`DC_WAD_R_FX`) came back forever, the loader freed its buffers through the wrong heap (`Ice::Render::UnmapMainMemory` on addresses it never mapped, the renderer's memory table driven to -1) and the GCM IO mapping was destroyed: that was the old "iooffset == -1 / MemTable entry not found" stop.
+- **GCM offset tables:** `cellGcmGetOffsetTable` gives the game a guest copy that map/unmap never updated. Now written through.
+- **WWS interrupt handler:** the job manager acknowledges a DMA list stall from an SPU interrupt whose handler (LS `0xA2C`) builds a register-save stub at `0x3FEC0` at run time. Two runtime bugs killed it: the SMC microstep computed `lqa`/`stqa` addresses as `I16 << 4` (the stub came from the wrong template), and after handing an instruction to the interpreter it did not dispatch back into lifted code, so the policy module quit. The jobs then ran into `dfs` and other ops the interpreter lacked.
 
 ## Gaps the imports show
 

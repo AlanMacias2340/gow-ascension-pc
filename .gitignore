@@ -9,3 +9,4 @@
 /build/
 /release/
 __pycache__/
+recomp_spu_ls.bin

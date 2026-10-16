@@ -1,0 +1,119 @@
+From 1310ef3f8fe93d2b243e98f9e2af86fa42431c95 Mon Sep 17 00:00:00 2001
+From: Arnaldo Lima <arnaldolimaof@gmail.com>
+Date: Fri, 16 Oct 2026 06:29:27 -0300
+Subject: [PATCH] SPU: fix SMC microstep lqa/stqa and interpreter hand-back;
+ add missing ops
+
+- lqa/stqa address is I16 << 2, not << 4. The WWS interrupt handler loads
+  the template for its register-save stub with lqa and built garbage.
+- When the microstep hands off to the interpreter and it rejoins lifted
+  code, schedule the dispatch there. The run used to end at that pc, so
+  the WWS policy module quit inside its interrupt handler, the list stall
+  was never acknowledged and no job ran (God of War: Ascension).
+- Interpreter: the double-precision ops (dfa/dfs/dfm/dfma/dfms/dfnms/
+  dfnma, compares, dftsv), bgx, mpyhhau, mpyui, rothmi, rotmah(i) and
+  bisled. Ascension's jobs stopped on dfs.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ runtime/spu/spu_channels.c | 16 ++++++++++++++--
+ runtime/spu/spu_interp.c   | 27 +++++++++++++++++++++++++++
+ 2 files changed, 41 insertions(+), 2 deletions(-)
+
+diff --git a/runtime/spu/spu_channels.c b/runtime/spu/spu_channels.c
+index 2a74e51..f6484f4 100644
+--- a/runtime/spu/spu_channels.c
++++ b/runtime/spu/spu_channels.c
+@@ -1969,7 +1969,10 @@ static int spu_smc_microstep(spu_context* ctx)
+             pc += 4; continue;
+         }
+         if (op9 == 0x041 || op9 == 0x061) {                   /* stqa / lqa (abs) */
+-            uint32_t a = (((w >> 7) & 0xFFFF) << 4) & SPU_LS_MASK & ~15u;
++            /* LSA = I16 || 0b00, as the lifter has it. This was I16 << 4, so
++             * the WWS interrupt handler's `lqa $77, 0xA40` read its stub
++             * template from 0x2900 and built garbage at 0x3FEC0. */
++            uint32_t a = ((uint32_t)i16 << 2) & SPU_LS_MASK & ~15u;
+             if (op9 == 0x041) spu_ls_write128(ctx, a, ctx->gpr[rt]);
+             else              ctx->gpr[rt] = spu_ls_read128(ctx, a);
+             pc += 4; continue;
+@@ -2041,7 +2044,16 @@ static int spu_smc_microstep(spu_context* ctx)
+         /* Stop at the drain's return point too: it sits mid-function, so it is
+          * no lifted entry, and a job's return would otherwise run on through
+          * the caller's code (GH3's song-freeze; see drain_ret_pc). */
+-        return spu_interp_run_until(ctx, pc, ctx->drain_ret_pc) ? 1 : 0;
++        if (!spu_interp_run_until(ctx, pc, ctx->drain_ret_pc)) return 0;
++        /* Rejoined lifted code (or the drain's return point) still running:
++         * dispatch there, as the branch cases above do. Returning without a
++         * trampoline ended the whole run at that pc -- the WWS interrupt
++         * handler (God of War: Ascension) interprets its stub-building loop,
++         * rejoins at the lifted loop head and the policy module simply quit,
++         * so a list stall was never acknowledged and no job ever ran. */
++        if (!(ctx->status & (SPU_STATUS_STOPPED_BY_STOP | SPU_STATUS_STOPPED_BY_HALT)))
++            g_spu_trampoline_fn = spu_indirect_branch;
++        return 1;
+     }
+     { static int _n = 0; if (_n++ < 4)
+         fprintf(stderr, "[spu-smc] microstep img=%d runaway (4096 steps from 0x%05X)\n",
+diff --git a/runtime/spu/spu_interp.c b/runtime/spu/spu_interp.c
+index bdee01c..2e1eb1e 100644
+--- a/runtime/spu/spu_interp.c
++++ b/runtime/spu/spu_interp.c
+@@ -143,7 +143,10 @@ static int spu_step(spu_context* ctx) {
+     case SPU_sfx:  DST = spu_sfx(A,B,DST); break;
+     case SPU_cg:   DST = spu_cg(A,B); break;
+     case SPU_cgx:  DST = spu_cgx(A,B,DST); break;
++    case SPU_bgx:  DST = spu_bgx(A,B,DST); break;
+     case SPU_mpyi: DST = spu_mpyi(A,I); break;
++    case SPU_mpyui: DST = spu_mpyui(A,I); break;
++    case SPU_mpyhhau: DST = spu_mpyhhau(A,B,T); break;   /* accumulates into rt */
+     /* logical */
+     case SPU_and: DST = spu_and(A,B); break;
+     case SPU_or:  DST = spu_or(A,B); break;
+@@ -187,6 +190,12 @@ static int spu_step(spu_context* ctx) {
+     case SPU_rotmi:DST = spu_rotmi(A,I); break;
+     case SPU_rotma:DST = spu_rotma(A,B); break;
+     case SPU_rotmai:DST = spu_rotmai(A,I); break;
++    case SPU_rotmahi:DST = spu_rotmahi(A,I); break;
++    case SPU_rothmi: DST = spu_rothmi(A,I); break;
++    case SPU_rotmah: { u128 r, a = A, b = B;   /* halfword shift right algebraic by (-rb)&0x1F */
++        for (int k = 0; k < 8; k++) { uint32_t sh = (0u - b._u16[k]) & 0x1F;
++            r._s16[k] = sh > 15 ? (int16_t)(a._s16[k] >> 15) : (int16_t)(a._s16[k] >> sh); }
++        DST = r; break; }
+     case SPU_roth: DST = spu_roth(A,B); break;
+     case SPU_rothi:DST = spu_rothi(A,I); break;
+     case SPU_shlqbi: DST = spu_shlqbi(A,B); break;
+@@ -248,6 +257,19 @@ static int spu_step(spu_context* ctx) {
+     case SPU_fma:  DSTC = spu_fma(A,B,T); break;    /* RRR: dest=rc */
+     case SPU_fms:  DSTC = spu_fms(A,B,T); break;
+     case SPU_fnms: DSTC = spu_fnms(A,B,T); break;
++    /* double: RR forms, the multiply-adds accumulate into rt */
++    case SPU_dfa:    DST = spu_dfa(A,B); break;
++    case SPU_dfs:    DST = spu_dfs(A,B); break;
++    case SPU_dfm:    DST = spu_dfm(A,B); break;
++    case SPU_dfma:   DST = spu_dfma(A,B,T); break;
++    case SPU_dfms:   DST = spu_dfms(A,B,T); break;
++    case SPU_dfnms:  DST = spu_dfnms(A,B,T); break;
++    case SPU_dfnma:  DST = spu_dfnma(A,B,T); break;
++    case SPU_dfceq:  DST = spu_dfceq(A,B); break;
++    case SPU_dfcmeq: DST = spu_dfcmeq(A,B); break;
++    case SPU_dfcgt:  DST = spu_dfcgt(A,B); break;
++    case SPU_dfcmgt: DST = spu_dfcmgt(A,B); break;
++    case SPU_dftsv:  DST = spu_dftsv(A,I); break;
+     /* immediate byte/halfword compares */
+     case SPU_ceqbi: DST = spu_ceqbi(A,I); break;
+     case SPU_cgtbi: DST = spu_cgtbi(A,I); break;
+@@ -290,6 +312,11 @@ static int spu_step(spu_context* ctx) {
+     case SPU_bi:   next = PREF(A) & 0x3FFFC; break;
+     case SPU_bisl: DST = spu_link(pc + 4); next = PREF(A) & 0x3FFFC; break;
+     case SPU_iret: next = ctx->srr0 & 0x3FFFC; break;
++    case SPU_bisled: {   /* branch (and link) only while an enabled event is pending */
++        uint32_t tgt = PREF(A) & 0x3FFFC;
++        DST = spu_link(pc + 4);
++        if (ctx->event_status & ctx->event_mask) next = tgt;
++        break; }
+     case SPU_biz:  if (PREF(DST) == 0) next = PREF(A) & 0x3FFFC; break;
+     case SPU_binz: if (PREF(DST) != 0) next = PREF(A) & 0x3FFFC; break;
+     case SPU_bihz: if ((PREF(DST) & 0xFFFF) == 0) next = PREF(A) & 0x3FFFC; break;
+-- 
+2.55.0.windows.5
+
