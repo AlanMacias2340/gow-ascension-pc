@@ -1,0 +1,10 @@
+# Nothing derived from the game's own files belongs in this repository.
+/input/
+/meta/
+/src/recomp/
+/src/gen/
+/data/keys
+# Local build output.
+/build/
+/release/
+__pycache__/
