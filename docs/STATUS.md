@@ -20,14 +20,14 @@ On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.
 
 ## Next
 
-- What thread 7 polls for (lr `0x004803B4`, a 500 us sleep loop) and what the main thread's FIOS wait is for after the first SPU message: the SPU task's reply path (its syscall 3 after the message), or an asynchronous read.
+- **The LFQueue protocol of this game's libspurs.** Thread 7 waits for a job to finish: `func_0047D5AC` calls the job's virtual `func_005A8D6C`, true when the word at job `+0x28` is 0 (job `0x15E66C84`, its counter at `0x15E66CAC`, still 1). The PPU's message reaches the queue (slot 0 at `0x15E66B00` points at `0x15E66CAD`), the SPU task wakes and polls (syscall 3), but does not take it: it writes `0x4000` into the 16-bit field at queue `+0x02` instead. The ring model ps3recomp derived from another title (32-bit pop/push words at `+0x00`/`+0x04`) does not fit here; the line reads as the SDK's `CellSyncLFQueue`, 16-bit halves in `pop1` (`+0x00`) and `push1` (`+0x08`). Derive the exact protocol from the consumer in SPU image 4 (its pop path) before changing `_cellSpursLFQueuePushBody`.
 - The `CollisL` workload's policy module is raw SPU code inside the executable (12 KB at `0x77CA80`), not one of the four embedded SPU ELFs, so it is not lifted ("PM NOT LIFTED"); lift it from that range.
 
 ## Found so far
 
 - **`sys_lwcond_t` layout (ps3recomp bug):** the runtime wrote the lwmutex as a 64-bit EA at +0x00 and the queue id at +0x08; the PS3 structure is 8 bytes (be32 lwmutex, be32 id). The game reads the first word before waiting, found 0 and never waited, so its FIOS threads deadlocked and no file was opened. Fixed on the fork.
 - **Files past 2 GB (ps3recomp bug, Windows):** `cellFsLseek`, `cellFsFstat` and `cellFsStat` used `long` and `struct stat`, 32 bits on Windows. `RESOURCES.PSARC` (2.1 GB) failed to mount with -139 and the init gave up. Fixed with 64-bit helpers.
-- **`_cellSpursLFQueuePushBody`** was missing: the PPU's first message to its SPU task never arrived. Implemented on the ring model ps3recomp derived from the consumer, under the lock-line lock.
+- **`_cellSpursLFQueuePushBody`** was missing: the PPU's first message to its SPU task never arrived. Implemented on the ring model ps3recomp derived from another title's consumer, under the lock-line lock; the message arrives and wakes the task, but the model does not match this game's consumer (see Next).
 - **How the init failure was found:** a temporary `fprintf` after every call in the lifted `func_002AC3D8` (generated code, not kept) showed the archive-mount call returning -139 on the fourth archive.
 
 ## Gaps the imports show
