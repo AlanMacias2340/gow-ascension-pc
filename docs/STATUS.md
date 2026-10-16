@@ -20,8 +20,9 @@ On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.
 
 ## Next
 
-- **The frame-end barrier job reads its lock line from EA 0.** With all 19 workloads registered (SPURS2 32-workload support), the frame-end job runs. It is the Wws helper module at VA `0x77C180` (0x900 bytes, header `0x270 / 0x8B0 / C0DEC0DE`, loaded at LS `0x4000`), and it spins at LS `0x41D0`-`0x4204` taking the minimum of six lane progress counters it reads with GETLLAR. The EA it writes to `MFC_EAL` is `r12`, which its own prologue sets to 0 (`fsmbi $12, 0` at LS `0x413C`, the same bytes as on disc), so it reads zeros and waits forever. Meanwhile the PPU waits on the same kind of progress at `0x12600530` (`func_00466E28`). The module is full of `brsl $2 / ai $2,$2,8 / bi $2` hook slots that the policy module presumably rewrites, and one sits right before the GETLLAR: find what the PM patches into them (or what sets `r12`) when it loads this module.
-- Diagnose with `YDKJ_SPU_TRACE=1 SPU_STEPCAP=30000000`: the dump shows the loop code, `MFC_EAH`, the line buffer and the registers.
+- **The second frame never completes.** The first frame now runs end to end: the RSX executes it, its five jobs finish (the last is the Wws barrier module at VA `0x77C180`, which decrements `0x99AAA4` and releases the frame counter and slot 1). In frame 2 four jobs finish and the barrier never runs: `0x99AAA4` stays at 1, slot 2 (`0x99AAC8`) at 1, and the render thread waits on it. The RSX meanwhile sits on the park at the end of frame 2 (IO `0x2810D8`), which is released by the *next* present (no vsync queue: `*(0x970F30) == 0`, the present at `func_00376788` rewrites the previous park). No SPU job is spinning (`SPU_STEPCAP=2000000` never fires), so the barrier job is not being scheduled. Next: the Wws job-list state for frame 2 (which list holds the barrier and what it is waiting on), starting from the list the PPU polls at `0x12600530` (`func_00466E28`).
+- Workload kicks: `RsxSync` (wid 18) is kicked once, `EDGE1` (wid 16) twice; check whether they are re-kicked per frame.
+- The intro loader draws 234 frames (clears, textures, draws through D3D12), yet the window stays black: look at present/flip on the D3D12 side once frames flow.
 - The idle `Wws_Job` policy module logs every poll: quiet it before longer runs.
 
 ## Found so far
@@ -39,6 +40,9 @@ On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.
 - **WWS interrupt handler:** the job manager acknowledges a DMA list stall from an SPU interrupt whose handler (LS `0xA2C`) builds a register-save stub at `0x3FEC0` at run time. Two runtime bugs killed it: the SMC microstep computed `lqa`/`stqa` addresses as `I16 << 4` (the stub came from the wrong template), and after handing an instruction to the interpreter it did not dispatch back into lifted code, so the policy module quit. The jobs then ran into `dfs` and other ops the interpreter lacked.
 
 - **SPURS2 has 32 workloads.** The runtime stopped at 16, so `EDGE1`, `EDGE2` and `RsxSync` (wid 16-18) were never added. The frame-slot counters at `0x99AAC0` (released by the frame-end job) stayed at 1 and the render thread waited forever. Fixed: the second set of instance fields is used for wid 16-31.
+
+- **SPURS2 flags and the second info table.** The barrier module reads flags1 (instance `+0x74`, copied to LS `0x174`) and needs `SF1_32_WORKLOADS` (0x40) before it looks up a wid >= 16; it computes that wid's info at `spurs + 0x1000 + 32*(wid-16)`. Without the flag it read its lock line from EA 0 and waited forever. Fixed.
+- **GET_REPORT in main memory.** The game points the report DMA at the host buffer (`0xFEED0001`), so reports land at IO offsets in main memory; the runtime only kept them in a host array. Now written to guest memory too.
 
 ## Gaps the imports show
 

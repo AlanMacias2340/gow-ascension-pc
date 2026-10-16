@@ -1,0 +1,104 @@
+From 1c9bfbd780dfa181c6b254f4132e602a4163015b Mon Sep 17 00:00:00 2001
+From: Arnaldo Lima <arnaldolimaof@gmail.com>
+Date: Fri, 16 Oct 2026 07:33:52 -0300
+Subject: [PATCH] SPURS2 flags1 and wklInfo2; GET_REPORT into main memory
+
+- A CellSpurs2 instance sets SF1_32_WORKLOADS (0x40) in flags1 (+0x74).
+  SPU code reads it: God of War: Ascension's Wws barrier module checks it
+  before it looks up a wid >= 16 and otherwise takes its error path,
+  reading its lock line from EA 0 and waiting forever.
+- wklInfo2 is at +0x1000 (the same module computes spurs + 0x1000 +
+  32*(wid-16)), not +0x1200.
+- GET_REPORT now also writes CellGcmReportData {u64 timer, u32 value,
+  u32 pad} to guest memory when NV4097_SET_CONTEXT_DMA_REPORT is the host
+  buffer (0xFEED0001): the report offset is an IO offset there. The host
+  array alone never changed what the title and its SPU jobs read.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ libs/spurs/cellSpurs.c  | 13 +++++++++++--
+ libs/video/cellGcmSys.c | 26 ++++++++++++++++++++++++--
+ 2 files changed, 35 insertions(+), 4 deletions(-)
+
+diff --git a/libs/spurs/cellSpurs.c b/libs/spurs/cellSpurs.c
+index c89c4ac..141b3d4 100644
+--- a/libs/spurs/cellSpurs.c
++++ b/libs/spurs/cellSpurs.c
+@@ -429,7 +429,10 @@ enum {
+     SPURS_SYSSRV_MSG   = 0xBD,
+     SPURS_WKL_INFO1    = 0xB00,
+     SPURS_WKL_INFO_SZ  = 0x20,
+-    SPURS_WKL_INFO2    = 0x1200, /* wid 16-31 (CellSpurs2 only) */
++    SPURS_WKL_INFO2    = 0x1000, /* wid 16-31 (CellSpurs2 only); the Wws job
++                                  * module computes spurs + 0x1000 + 32*(wid-16) */
++    SPURS_FLAGS1       = 0x74,
++    SPURS_SF1_32_WORKLOADS = 0x40,
+     /* CELL_SPURS_SIZE = 4096 (SDK cell/spurs/types.h). The 8192-byte variant
+      * is CellSpurs2 (cellSpursInitialize*2* NIDs) which LBP does not use —
+      * clearing 0x2000 here overran the game's 4KB heap block and corrupted
+@@ -533,7 +536,13 @@ s32 cellSpursInitializeWithAttribute2(CellSpurs* spurs,
+         /* CellSpurs2 is 8 KB: the second workload set lives past 4 KB. */
+         const u32 ea = (u32)(uintptr_t)spurs;
+         struct SpursInst* si = spurs_inst_find(ea);
+-        if (si) { si->is2 = 1; memset(vm_base + ea + SPURS_INST_SIZE, 0, SPURS_INST_SIZE); }
++        if (si) {
++            si->is2 = 1;
++            memset(vm_base + ea + SPURS_INST_SIZE, 0, SPURS_INST_SIZE);
++            /* flags1 says so to SPU code: the Wws job module tests it before
++             * it looks a wid >= 16 up, and takes its error path without it. */
++            *(vm_base + ea + SPURS_FLAGS1) |= SPURS_SF1_32_WORKLOADS;
++        }
+     }
+     return rc;
+ }
+diff --git a/libs/video/cellGcmSys.c b/libs/video/cellGcmSys.c
+index de67c02..a73f680 100644
+--- a/libs/video/cellGcmSys.c
++++ b/libs/video/cellGcmSys.c
+@@ -800,6 +800,7 @@ unsigned long long ps3_ms_now(void)
+ }
+ 
+ static u32 s_sema_offset = 0;   /* NV406E semaphore offset (label window) */
++static u32 s_report_ctx = 0;    /* NV4097_SET_CONTEXT_DMA_REPORT */
+ /* Backlog past which the drain stops honouring one-flip-per-tick and
+  * catches up instead. Sized well above a frame's command list so a
+  * title that keeps up never sees this path. */
+@@ -1975,12 +1976,33 @@ static void gcm_rsx_process_fifo_unlocked(void)
+                      * area. Sample counts are not measured, so a ZPASS query
+                      * reports "visible" -- the conservative answer; reading 0
+                      * tells the title every queried object is occluded. */
++                    /* NV4097_SET_CONTEXT_DMA_REPORT: where GET_REPORT writes.
++                     * 0xFEED0001 (CELL_GCM_CONTEXT_DMA_MEMORY_HOST_BUFFER) puts
++                     * the reports in main memory, at an IO offset. */
++                    if (m == 0x01A8) s_report_ctx = vm_read32(dea);
+                     if (m == 0x1800) {
+                         const u32 v = vm_read32(dea), idx = (v & 0xFFFFFFu) / 16u;
+                         { static int rn = 0; if (rn++ < 6) printf("[GET_REPORT] type=%u idx=%u%c", v >> 24, idx, 10); }
++                        const u64 ts = get_timestamp_ns();
++                        const u32 val = (v >> 24) == 1u ? 0xFFFFu : 0u;
+                         if (idx < CELL_GCM_MAX_REPORT_COUNT) {
+-                            s_report_data[idx].timestamp = get_timestamp_ns();
+-                            s_report_data[idx].value = (v >> 24) == 1u ? 0xFFFFu : 0u;
++                            s_report_data[idx].timestamp = ts;
++                            s_report_data[idx].value = val;
++                        }
++                        /* A main-memory report is what the title (and its SPU
++                         * jobs) actually read: CellGcmReportData, big-endian
++                         * {u64 timer; u32 value; u32 padding}. God of War:
++                         * Ascension times its frames with these and its
++                         * RsxSync jobs wait on them; kept only in the host
++                         * array above, they never changed. */
++                        if (s_report_ctx == 0xFEED0001u) {
++                            const u32 rea = gcm_io2ea(v & 0xFFFFF0u);
++                            if (rea) {
++                                vm_write32(rea + 0, (u32)(ts >> 32));
++                                vm_write32(rea + 4, (u32)ts);
++                                vm_write32(rea + 8, val);
++                                vm_write32(rea + 12, 0);
++                            }
+                         }
+                     }
+                 } else
+-- 
+2.55.0.windows.5
+
