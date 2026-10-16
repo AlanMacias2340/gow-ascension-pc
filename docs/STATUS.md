@@ -12,7 +12,16 @@ Where the experiment stands. Machine: Windows 11, AMD Ryzen 7 5700G, Radeon RX 7
 | SPU images | **Done:** only 4 embedded (176 KB, `extract_spu_images.py`), lifted and registered by fingerprint (`build_spu_workloads.py`; 91% of their bytes are code, the rest data in `.text`). The SPURS jobs the game runs most likely come from its data archives (`*.PSARC`): to be looked at. |
 | PPU lifting | **Done:** 19,569 functions, 1.8 million lines of C++ (126 MB) in 12 units of 150,000 lines (`--chunk-lines 150000`, so each fits a 16 GB machine), no unknown instruction, 62 jump tables, 676 mid-function entries, 345 import stubs as HLE calls. `--toc 0x81EF60 --code-end 0x62C4CC`; about 20 s. |
 | Build | **Done:** `AscensionRecomp.exe`, 55 MB, clang-cl and Ninja with `-j 4`. The project is ps3recomp's `templates/project`, pointed at `../ps3recomp`, `src/recomp` and `src/spu`, plus `dxguid` (the D3D12 backend's DXGI interface IDs). |
-| Boot | **Starts**, with only `EBOOT.elf` in place: TLS, the system modules, the D3D12 window on the RX 7600, SPURS with the game's first workload (`Wws_Job` / `CollisL`), `cellGame` boot check, the FIOS media threads. Then it waits: no disc files yet (the title id reads `BLES00000`, as there is no `PARAM.SFO`), and three SPURS calls have no handler: `cellSpursInitializeWithAttribute2`, `_cellSpursTasksetAttribute2Initialize`, `cellSpursAttributeEnableSystemWorkload`. |
+| Boot | **Starts and stops early.** With the disc extracted (7-Zip reads its UDF names, which are the ones the game asks for) and `PARAM.SFO` read at boot (`main.cpp` calls `cellGame_init_from_paramsfo`): TLS, the system modules, the D3D12 window on the RX 7600, SPURS "Big" with 2 SPUs through the second-generation calls, three tasksets, the first workload (`Wws_Job` / `CollisL`), the boot check as `BCES01741`, the FIOS media threads. Then the FIOS threads wait on a lightweight mutex thread 2 holds, and nothing moves for 80 s. No import is left without a handler at that point. |
+
+## ps3recomp changes
+
+On a local branch `ascension` of ps3recomp, kept as `patches/ps3recomp-0001-spurs2.patch` (apply with `git am` in `../ps3recomp`): `cellSpursInitializeWithAttribute2`, `cellSpursCreateTaskset2`, `_cellSpursTasksetAttribute2Initialize` and `cellSpursAttributeEnableSystemWorkload`. The build regenerates the NID table whenever ps3recomp's library sources change (`CMakeLists.txt`).
+
+## Next
+
+- Where FIOS thread 2 stands while the others wait on it.
+- The `CollisL` workload's policy module is raw SPU code inside the executable (12 KB at `0x77CA80`), not one of the four embedded SPU ELFs, so it is not lifted ("PM NOT LIFTED"); lift it from that range.
 
 ## Gaps the imports show
 

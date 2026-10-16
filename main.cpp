@@ -69,6 +69,9 @@ int      ppu_run(uint32_t entry_opd, uint32_t stack_top);
  * a game with no lifted PRX wants. */
 void     ps3_load_prx_modules(void);
 
+/* libs/system/cellGame.c: title id and name from the disc's PARAM.SFO. */
+extern "C" void cellGame_init_from_paramsfo(const char* sfo_path);
+
 extern const char* ppu_vfs_root;              /* host dir the PS3 mount points map into */
 
 /* The status the guest handed to sys_process_exit. A title that exits that way
@@ -342,6 +345,13 @@ int main(int argc, char** argv)
 
     derive_vfs_root(argv[1]);
     printf("[boot] VFS root: %s\n", ppu_vfs_root);
+    {
+        /* The disc's own title id (BCES01741), not the runtime's placeholder:
+         * cellGame's boot check, cache and save paths are named by it. */
+        char sfo[1100];
+        snprintf(sfo, sizeof sfo, "%s/PS3_GAME/PARAM.SFO", ppu_vfs_root);
+        cellGame_init_from_paramsfo(sfo);
+    }
 
     ppu_recomp_register();   /* lifted function table -> address map */
     ps3_load_prx_modules();  /* this game's lifted system PRX, if it has any */
