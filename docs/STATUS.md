@@ -20,8 +20,11 @@ On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.
 
 ## Next
 
-- **The second frame never completes.** The first frame now runs end to end: the RSX executes it, its five jobs finish (the last is the Wws barrier module at VA `0x77C180`, which decrements `0x99AAA4` and releases the frame counter and slot 1). In frame 2 four jobs finish and the barrier never runs: `0x99AAA4` stays at 1, slot 2 (`0x99AAC8`) at 1, and the render thread waits on it. The RSX meanwhile sits on the park at the end of frame 2 (IO `0x2810D8`), which is released by the *next* present (no vsync queue: `*(0x970F30) == 0`, the present at `func_00376788` rewrites the previous park). No SPU job is spinning (`SPU_STEPCAP=2000000` never fires), so the barrier job is not being scheduled. Next: the Wws job-list state for frame 2 (which list holds the barrier and what it is waiting on), starting from the list the PPU polls at `0x12600530` (`func_00466E28`).
-- Workload kicks: `RsxSync` (wid 18) is kicked once, `EDGE1` (wid 16) twice; check whether they are re-kicked per frame.
+- **The second frame never completes: map the per-frame job graph.** What is known (`SPURS_KICKLOG`, `SPURS_WLDUMP`, `SPU_PCWATCH`):
+  - Each frame the render thread arms a 5-job counter (`0x99AAA4`), a frame counter (`0x99AAB0 + 4f`) and a frame slot (`0x99AAC0 + 4f`), and kicks `MeshProcJobs` (wid 14, five jobs), one of the three `EDGE` workloads in rotation (frame 1 EDGE1 = wid 16, frame 2 EDGE2 = wid 17, frame 3 EDGE0 = wid 15) and `RsxSync` (wid 18).
+  - Frame 1 completes. In frames 2 and 3 MeshProc's four jobs finish but the fifth decrement never comes, and the EDGE list keeps its commands pending (EDGE2 at `0x14D7FF00`: `+0x70 = 0x00100010`, commands `[2, 0x99AAC4] [2, 0x99AAA4]`; EDGE0 at `0x14D57A00`: `[2, 0x99AAC8] [2, 0x99AAA4] [2, 0x99AAC8]`; EDGE1, done, is all zero).
+  - The `RsxSync` list (`0x14E84100`, named "RsxSync", sublists at `0x14E84200`...) holds commands `[5, 0x1101EDxC, 0x00600001, ...]`: it waits on word +0xC of the GPU report at IO `0x1ED10 + 0x10*n`. The GPU wrote only frame 1's report (`GET_REPORT 0x0101ED10`); frame 2's would come from command segments the SPU jobs fill and chain in (`JUMP` slots at IO `0x280020`, `0x280024`... in the 8 MB ring).
+  - Next: decode the Wws command codes (2, 3, 5) from the policy module, then find which link of the CPU -> SPU -> GPU chain breaks first in frame 2.
 - The idle `Wws_Job` policy module logs every poll: quiet it before longer runs.
 
 ## Found so far
