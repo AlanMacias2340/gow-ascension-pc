@@ -12,16 +12,20 @@ Where the experiment stands. Machine: Windows 11, AMD Ryzen 7 5700G, Radeon RX 7
 | SPU images | **Done:** only 4 embedded (176 KB, `extract_spu_images.py`), lifted and registered by fingerprint (`build_spu_workloads.py`; 91% of their bytes are code, the rest data in `.text`). The SPURS jobs the game runs most likely come from its data archives (`*.PSARC`): to be looked at. |
 | PPU lifting | **Done:** 19,569 functions, 1.8 million lines of C++ (126 MB) in 12 units of 150,000 lines (`--chunk-lines 150000`, so each fits a 16 GB machine), no unknown instruction, 62 jump tables, 676 mid-function entries, 345 import stubs as HLE calls. `--toc 0x81EF60 --code-end 0x62C4CC`; about 20 s. |
 | Build | **Done:** `AscensionRecomp.exe`, 55 MB, clang-cl and Ninja with `-j 4`. The project is ps3recomp's `templates/project`, pointed at `../ps3recomp`, `src/recomp` and `src/spu`, plus `dxguid` (the D3D12 backend's DXGI interface IDs). |
-| Boot | **Starts and stops early.** With the disc extracted (7-Zip reads its UDF names, which are the ones the game asks for) and `PARAM.SFO` read at boot (`cellGame_init_from_paramsfo`): TLS, the system modules, the D3D12 window on the RX 7600, SPURS "Big" with 2 SPUs through the second-generation calls, three tasksets, the first workload (`Wws_Job` / `CollisL`), the boot check as `BCES01741`, the FIOS media threads. Then the FIOS threads wait on a lightweight mutex thread 2 holds, and nothing moves for 80 s. No import is left without a handler at that point. |
+| Boot | **Reads its archives, then gives up.** TLS, system modules, the D3D12 window, SPURS (second generation), the boot check as `BCES01741`, game data created (`BCES01741-DATA`), FIOS working, `ARCHIVES`, `GAME.PSARC`, `SHELL.PSARC`, `INTROCIN.PSARC` and `RESOURCES.PSARC` opened, a SPU task dispatched to a lifted image (it then waits for a signal). The game's init (`func_002AC3D8`, called from main `func_0033A0E0`) returns failure; main then waits up to 5 s for an exit request and calls `sys_prx_exitspawn_with_level`, and the runtime crashes on the way out. |
 
 ## ps3recomp changes
 
-On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.com/arnaldolima1/ps3recomp/tree/ascension), the checkout `../ps3recomp` should be on (also kept as `patches/ps3recomp-0001-spurs2.patch`): `cellSpursInitializeWithAttribute2`, `cellSpursCreateTaskset2`, `_cellSpursTasksetAttribute2Initialize` and `cellSpursAttributeEnableSystemWorkload`. The build regenerates the NID table whenever ps3recomp's library sources change (`CMakeLists.txt`).
+On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.com/arnaldolima1/ps3recomp/tree/ascension), the checkout `../ps3recomp` should be on (also kept as `patches/`): `cellSpursInitializeWithAttribute2`, `cellSpursCreateTaskset2`, `_cellSpursTasksetAttribute2Initialize` and `cellSpursAttributeEnableSystemWorkload`; the `sys_lwcond_t` layout; `cellGamePatchCheck`. The build regenerates the NID table whenever ps3recomp's library sources change (`CMakeLists.txt`).
 
 ## Next
 
-- Where the boot stands. With ps3recomp's full boot harness (`runtime/ppu/tests/boot_main.cpp`, as Twisted Metal builds it) the `PS3_DEBUG` console answers: after 40 s no frame has been flipped; FIOS threads 3 and 4 wait in `sys_lwmutex_lock`; the main thread and one game thread are running, not blocked (main: `func_0033A0E0` → … → `func_004886DC` → `func_004A02FC`; the other in a thread body started by `func_004A00A4`, the game's thread entry). Find what they spin on: `PS3_SAMPLE`, `PS3_CALLTRACE`.
+- Why the game's init (`func_002AC3D8`) fails. No syscall returns an error; the SPU task left in `WAIT_SIGNAL` (taskset `0x15E65100`, its LF queue and event flag) is the first suspect.
 - The `CollisL` workload's policy module is raw SPU code inside the executable (12 KB at `0x77CA80`), not one of the four embedded SPU ELFs, so it is not lifted ("PM NOT LIFTED"); lift it from that range.
+
+## Found so far
+
+- **`sys_lwcond_t` layout (ps3recomp bug):** the runtime wrote the lwmutex as a 64-bit EA at +0x00 and the queue id at +0x08; the PS3 structure is 8 bytes (be32 lwmutex, be32 id). The game reads the first word before waiting, found 0 and never waited, so its FIOS threads deadlocked and no file was opened. Fixed on the fork.
 
 ## Gaps the imports show
 
