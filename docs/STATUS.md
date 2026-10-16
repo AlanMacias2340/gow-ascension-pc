@@ -16,7 +16,7 @@ Where the experiment stands. Machine: Windows 11, AMD Ryzen 7 5700G, Radeon RX 7
 
 ## ps3recomp changes
 
-On a local branch `ascension` of ps3recomp, kept as `patches/ps3recomp-0001-spurs2.patch` (apply with `git am` in `../ps3recomp`): `cellSpursInitializeWithAttribute2`, `cellSpursCreateTaskset2`, `_cellSpursTasksetAttribute2Initialize` and `cellSpursAttributeEnableSystemWorkload`. The build regenerates the NID table whenever ps3recomp's library sources change (`CMakeLists.txt`).
+On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.com/arnaldolima1/ps3recomp/tree/ascension), the checkout `../ps3recomp` should be on (also kept as `patches/ps3recomp-0001-spurs2.patch`): `cellSpursInitializeWithAttribute2`, `cellSpursCreateTaskset2`, `_cellSpursTasksetAttribute2Initialize` and `cellSpursAttributeEnableSystemWorkload`. The build regenerates the NID table whenever ps3recomp's library sources change (`CMakeLists.txt`).
 
 ## Next
 
