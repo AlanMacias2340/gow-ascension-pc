@@ -11,8 +11,8 @@ Where the experiment stands. Machine: Windows 11, AMD Ryzen 7 5700G, Radeon RX 7
 | Function boundaries | **Done:** 19,199 functions (`find_functions.py`), every `.opd` descriptor a function start; 7,556 OPD entries. Code ends at `0x62C4CC`, right after the import stubs (`0x627954`-`0x62C494`). |
 | SPU images | **Done:** only 4 embedded (176 KB, `extract_spu_images.py`), lifted and registered by fingerprint (`build_spu_workloads.py`; 91% of their bytes are code, the rest data in `.text`). The SPURS jobs the game runs most likely come from its data archives (`*.PSARC`): to be looked at. |
 | PPU lifting | **Done:** 19,569 functions, 1.8 million lines of C++ (126 MB) in 12 units of 150,000 lines (`--chunk-lines 150000`, so each fits a 16 GB machine), no unknown instruction, 62 jump tables, 676 mid-function entries, 345 import stubs as HLE calls. `--toc 0x81EF60 --code-end 0x62C4CC`; about 20 s. |
-| Build | The project (`CMakeLists.txt`, `main.cpp`, `stubs.cpp`, `config.toml`) is ps3recomp's `templates/project`, pointed at `../ps3recomp`, `src/recomp` and `src/spu`; it configures. Not compiled yet. |
-| Boot | Not started. |
+| Build | **Done:** `AscensionRecomp.exe`, 55 MB, clang-cl and Ninja with `-j 4`. The project is ps3recomp's `templates/project`, pointed at `../ps3recomp`, `src/recomp` and `src/spu`, plus `dxguid` (the D3D12 backend's DXGI interface IDs). |
+| Boot | **Starts**, with only `EBOOT.elf` in place: TLS, the system modules, the D3D12 window on the RX 7600, SPURS with the game's first workload (`Wws_Job` / `CollisL`), `cellGame` boot check, the FIOS media threads. Then it waits: no disc files yet (the title id reads `BLES00000`, as there is no `PARAM.SFO`), and three SPURS calls have no handler: `cellSpursInitializeWithAttribute2`, `_cellSpursTasksetAttribute2Initialize`, `cellSpursAttributeEnableSystemWorkload`. |
 
 ## Gaps the imports show
 
