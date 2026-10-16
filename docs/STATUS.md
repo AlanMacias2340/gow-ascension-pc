@@ -16,14 +16,14 @@ Where the experiment stands. Machine: Windows 11, AMD Ryzen 7 5700G, Radeon RX 7
 
 ## ps3recomp changes
 
-On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.com/arnaldolima1/ps3recomp/tree/ascension), the checkout `../ps3recomp` should be on (also kept as `patches/`): `cellSpursInitializeWithAttribute2`, `cellSpursCreateTask2`, `_cellSpursTaskAttribute2Initialize`, `cellSpursCreateTaskset2`, `_cellSpursTasksetAttribute2Initialize`, `cellSpursAttributeEnableSystemWorkload`, `cellGcmMapEaIoAddressWithFlags`; the `sys_lwcond_t` layout; `cellGamePatchCheck`; files past 2 GB; `_cellSpursLFQueuePushBody`; Edge Zlib on the host (with truncated output and the skip offset); the GCM offset tables written through to the guest; the SPU microstep and interpreter fixes. The build regenerates the NID table whenever ps3recomp's library sources change (`CMakeLists.txt`).
+On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.com/arnaldolima1/ps3recomp/tree/ascension), the checkout `../ps3recomp` should be on (also kept as `patches/`): `cellSpursInitializeWithAttribute2`, `cellSpursCreateTask2`, `_cellSpursTaskAttribute2Initialize`, `cellSpursCreateTaskset2`, `_cellSpursTasksetAttribute2Initialize`, `cellSpursAttributeEnableSystemWorkload`, `cellGcmMapEaIoAddressWithFlags`; the `sys_lwcond_t` layout; `cellGamePatchCheck`; files past 2 GB; `_cellSpursLFQueuePushBody`; Edge Zlib on the host (with truncated output and the skip offset); the GCM offset tables written through to the guest; the SPU microstep and interpreter fixes; FIFO parks waited on. The build regenerates the NID table whenever ps3recomp's library sources change (`CMakeLists.txt`).
 
 ## Next
 
-- **The first frame.** Check whether the flips present anything (screenshot), and what the renderer draws in the first seconds.
+- **Black screen: a frame never completes.** The render thread (`func_003E798C`) waits for frame slot N+2 (`u16` busy counts at `0x99AAC0 + 4*i`, set by `func_003E7230`). The slots are released by SPU jobs, which decrement them atomically when they finish, like the other dependency counters in the same line (`0x99AAA4` counts down every batch). Slot 1 and the counters at `0x99AAB4`/`0x99AAB8` stay at 1: some jobs are never dispatched or never finish. Find which job lists feed them (workloads `RenJobSet`, `BatchJobList`, `ModelServer`...).
+- The RSX side is understood: put sits at the end of an 8 MB ring at IO `0x280000`, and the vblank handler (`func_00376DE8`) rewrites each park into a JUMP to the next queued frame. The runtime no longer abandons a park at once (`GCM_PARK_WAIT_MS`).
 - The idle `Wws_Job` policy module logs every poll (`[spurs-pm] poll`, `[mfc-list] RESUME-ELEMS`): about 10 MB in 110 s. Quiet it before longer runs.
-- Streamed WADs are inflated again from the start for every piece (each request skips what it already has): fine for headers, slow for large files. Cache the inflate state per stream if it shows up.
-- The LFQueue protocol itself is not on the path while Edge Zlib runs on the host; it matters again for any other queue the game feeds an SPU through.
+- Streamed WADs are inflated again from the start for every piece: cache the inflate state per stream if it shows up.
 
 ## Found so far
 
