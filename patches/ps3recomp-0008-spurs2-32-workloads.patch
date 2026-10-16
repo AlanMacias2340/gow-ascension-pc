@@ -1,7 +1,7 @@
 From b2907d5dc612adc5c4aff4c89bf65add2e2599ed Mon Sep 17 00:00:00 2001
 From: Arnaldo Lima <arnaldolimaof@gmail.com>
 Date: Fri, 16 Oct 2026 10:47:49 -0300
-Subject: [PATCH 08/10] SPURS2: 32 workloads on the per-SPU scheduler; STEPCAP
+Subject: [PATCH 08/11] SPURS2: 32 workloads on the per-SPU scheduler; STEPCAP
  dump shows the loop
 
 cellSpursInitializeWithAttribute2 instances carry 32 workloads, the
