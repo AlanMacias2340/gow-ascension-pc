@@ -168,6 +168,9 @@ add_executable(${PROJECT_NAME}
     # waits need, the hang watchdog, the PS3_DEBUG console and the
     # PARAM.SFO read at boot.
     "${PS3RECOMP_DIR}/runtime/ppu/tests/boot_main.cpp"
+    # Runtime switches this title needs on by default (live draw engine,
+    # host Edge Zlib).
+    "${CMAKE_CURRENT_SOURCE_DIR}/host/ascension_defaults.cpp"
     ${PS3RECOMP_SCAFFOLD}
     ${HLE_NID_TABLE}
     ${RECOMP_SOURCES}

@@ -12,7 +12,7 @@ Where the experiment stands. Machine: Windows 11, AMD Ryzen 7 5700G, Radeon RX 7
 | SPU images | **Done:** only 4 embedded (176 KB, `extract_spu_images.py`), lifted and registered by fingerprint (`build_spu_workloads.py`; 91% of their bytes are code, the rest data in `.text`). The SPURS jobs the game runs most likely come from its data archives (`*.PSARC`): to be looked at. |
 | PPU lifting | **Done:** 19,569 functions, 1.8 million lines of C++ (126 MB) in 12 units of 150,000 lines (`--chunk-lines 150000`, so each fits a 16 GB machine), no unknown instruction, 62 jump tables, 676 mid-function entries, 345 import stubs as HLE calls. `--toc 0x81EF60 --code-end 0x62C4CC`; about 20 s. |
 | Build | **Done:** `AscensionRecomp.exe`, 55 MB, clang-cl and Ninja with `-j 4`. The project is ps3recomp's `templates/project`, pointed at `../ps3recomp`, `src/recomp` and `src/spu`, plus `dxguid` (the D3D12 backend's DXGI interface IDs). |
-| Boot | **The game loop runs.** Run with `PS3_EDGE_ZLIB_HLE=1`. Past the intro loader (which streams its compressed WADs and then frees its memory cleanly), the `Wws_Job` jobs load and run on the SPU, the renderer sets shaders, render targets, textures and blending through the D3D12 backend, and the vblank/flip event loop ticks. No frame on screen confirmed yet. |
+| Boot | **The intro screens render.** The legal text, "Sony Computer Entertainment presents", the Santa Monica Studio logo and the online-play notice are drawn correctly (live draw engine, `host/ascension_defaults.cpp`). The game loop then stops at the second frame of the main renderer (see Next). |
 
 ## ps3recomp changes
 
@@ -22,7 +22,6 @@ On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.
 
 - **The second frame never completes.** The first frame now runs end to end: the RSX executes it, its five jobs finish (the last is the Wws barrier module at VA `0x77C180`, which decrements `0x99AAA4` and releases the frame counter and slot 1). In frame 2 four jobs finish and the barrier never runs: `0x99AAA4` stays at 1, slot 2 (`0x99AAC8`) at 1, and the render thread waits on it. The RSX meanwhile sits on the park at the end of frame 2 (IO `0x2810D8`), which is released by the *next* present (no vsync queue: `*(0x970F30) == 0`, the present at `func_00376788` rewrites the previous park). No SPU job is spinning (`SPU_STEPCAP=2000000` never fires), so the barrier job is not being scheduled. Next: the Wws job-list state for frame 2 (which list holds the barrier and what it is waiting on), starting from the list the PPU polls at `0x12600530` (`func_00466E28`).
 - Workload kicks: `RsxSync` (wid 18) is kicked once, `EDGE1` (wid 16) twice; check whether they are re-kicked per frame.
-- The intro loader draws 234 frames (clears, textures, draws through D3D12), yet the window stays black: look at present/flip on the D3D12 side once frames flow.
 - The idle `Wws_Job` policy module logs every poll: quiet it before longer runs.
 
 ## Found so far
@@ -43,6 +42,8 @@ On the branch [`ascension` of the fork `arnaldolima1/ps3recomp`](https://github.
 
 - **SPURS2 flags and the second info table.** The barrier module reads flags1 (instance `+0x74`, copied to LS `0x174`) and needs `SF1_32_WORKLOADS` (0x40) before it looks up a wid >= 16; it computes that wid's info at `spurs + 0x1000 + 32*(wid-16)`. Without the flag it read its lock line from EA 0 and waited forever. Fixed.
 - **GET_REPORT in main memory.** The game points the report DMA at the host buffer (`0xFEED0001`), so reports land at IO offsets in main memory; the runtime only kept them in a host array. Now written to guest memory too.
+
+- **The black window was the renderer.** ps3recomp's default D3D12 path recorded none of this title's draws: every present had `draws=0`. The live NV4097 engine (`RSX_LIVE_DRAW`) executes them (thousands of draw groups, none dropped) and the intro screens come out right. `host/ascension_defaults.cpp` turns it on, with `PS3_EDGE_ZLIB_HLE`, before `main` (through the OS environment: the harness caches `getenv` misses). `LD_FRAME_DUMP=<dir>` writes the presented frame as `.ppm`.
 
 ## Gaps the imports show
 
