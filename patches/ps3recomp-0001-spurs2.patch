@@ -1,7 +1,7 @@
 From fb3320a856aafd128b9a9ed0d0f1d82e5491d8dd Mon Sep 17 00:00:00 2001
 From: Arnaldo Lima <arnaldolimaof@gmail.com>
 Date: Thu, 15 Oct 2026 22:09:31 -0300
-Subject: [PATCH 01/13] cellSpurs: the second-generation entry points God of
+Subject: [PATCH 01/14] cellSpurs: the second-generation entry points God of
  War: Ascension calls
 
 cellSpursInitializeWithAttribute2 and cellSpursCreateTaskset2 forward to

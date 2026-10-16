@@ -1,7 +1,7 @@
 From 5441f972a9b0be93393a339e45ae3c9c5aa7a529 Mon Sep 17 00:00:00 2001
 From: Arnaldo Lima <arnaldolimaof@gmail.com>
 Date: Fri, 16 Oct 2026 13:01:26 -0300
-Subject: [PATCH 12/13] SPU_EVLOG: a policy module's interrupt path, in order
+Subject: [PATCH 12/14] SPU_EVLOG: a policy module's interrupt path, in order
 
 SPU_EVLOG=1 [SPU_EVLOG_WID=<wid>] logs, for one workload or all, each
 run's begin and end, every event-mask, tag-mask, tag-update and

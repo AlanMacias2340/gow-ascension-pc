@@ -1,7 +1,7 @@
 From f3346e2450edb0d989082f28db8da7044f8c6aba Mon Sep 17 00:00:00 2001
 From: Arnaldo Lima <arnaldolimaof@gmail.com>
 Date: Fri, 16 Oct 2026 13:21:57 -0300
-Subject: [PATCH 13/13] GCM: a FIFO park keeps its grace over the stuck-get
+Subject: [PATCH 13/14] GCM: a FIFO park keeps its grace over the stuck-get
  rule; job-API and report logs
 
 - A drain pass that stopped on a self-JUMP park no longer counts towards
