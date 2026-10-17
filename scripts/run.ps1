@@ -4,6 +4,7 @@
 #   .\scripts\run.ps1 -Save backup -Seconds 90 # work\save-backup in place: straight to the cinematic
 #   .\scripts\run.ps1 -Name cin -Env @{ VDEC_TIMELOG = "1"; PS3_HLE_HIST = "5" }
 #   .\scripts\run.ps1 -Profile -ProfileAt 45   # sample the busiest threads at 45 s
+#   .\scripts\run.ps1 -Seconds 0 -Save keep    # play: runs until you close the window
 #
 # -Save fresh  : move the current save aside (work\save-moved\<time>) so the
 #                first-use config menus show up (the default)
@@ -59,7 +60,7 @@ if ($Profile) {
 $t0 = Get-Date
 $p = Start-Process cmd.exe -ArgumentList "/c `"`"$Exe`" `"$Elf`" > `"$Log`" 2>&1`"" -WorkingDirectory $Root -PassThru -WindowStyle Hidden
 foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) }
-Write-Host "running for $Seconds s (log: $Log)"
+Write-Host $(if ($Seconds -le 0) { "running until closed (log: $Log)" } else { "running for $Seconds s (log: $Log)" })
 
 Start-Sleep -Seconds 2
 $game = Get-Process AscensionRecomp -ErrorAction SilentlyContinue | Sort-Object StartTime -Descending | Select-Object -First 1
@@ -69,9 +70,14 @@ if ($Profile -and $game) {
     python -I (Join-Path $Root "tools\profile_threads.py") --pid $game.Id --dbg $dbg --threads $ProfileThreads `
         --map (Join-Path $Root "build\win\AscensionRecomp.map") --out (Join-Path $Logs "$Name-prof.txt")
 }
-$left = $Seconds - ((Get-Date) - $t0).TotalSeconds
-if ($left -gt 0 -and $game) { Wait-Process -Id $game.Id -Timeout $left -ErrorAction SilentlyContinue }
-Get-Process AscensionRecomp -ErrorAction SilentlyContinue | Stop-Process -Force
+if ($Seconds -le 0) {
+    # -Seconds 0: play; wait until the game is closed, never kill it.
+    if ($game) { Write-Host "playing: close the game window when done"; Wait-Process -Id $game.Id }
+} else {
+    $left = $Seconds - ((Get-Date) - $t0).TotalSeconds
+    if ($left -gt 0 -and $game) { Wait-Process -Id $game.Id -Timeout $left -ErrorAction SilentlyContinue }
+    Get-Process AscensionRecomp -ErrorAction SilentlyContinue | Stop-Process -Force
+}
 Start-Sleep -Milliseconds 500
 
 python -I (Join-Path $Root "tools\log_summary.py") $Log
