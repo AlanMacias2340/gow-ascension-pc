@@ -16,6 +16,8 @@ Pages: Home (cross-fading artwork, quick settings), Video, Game, Mods, Advanced.
 | Mods | `PS3_MODS` (enabled folders, first wins; each mirrors `USRDIR`) |
 | Icon | `PS3_WINDOW_ICON` (`icon-2.png` as an `.ico`) |
 
+Brazilian Portuguese needs the PT-BR mod, which the Mods page builds from your own US disc (an `.iso` or its extracted folder) with `tools/make_ptbr_mod.py`; with it on, the language list offers Português (Brasil).
+
 Saves are copied to `gamedata\save-backups\` before each start (the last ten are kept). The run's output goes to `build\logs\last_run.log`.
 
 The artwork and music are not in the repository. The launcher reads `background*.jpg/png`, `logo.png`, `icon-2.png` and `music.mp3` from `launcher\assets\` or `..\work\data\launcher\`; without them it still works, plainer. `Cinzel-Black.ttf` is the Cinzel typeface (SIL Open Font License, `OFL-Cinzel.txt`).

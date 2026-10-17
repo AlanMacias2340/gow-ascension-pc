@@ -105,22 +105,15 @@ def icon_file():
 
 
 def ptbr_mod(mods_dir, enabled):
-    """An enabled mod that brings Brazilian Portuguese: it holds PORTUGUESE.PSARC
-    (the European disc's one Portuguese, replaced) and says so by its name
-    (PT-BR, ptbr, Brasil...) or a mod.json with "language": "pt-BR"."""
+    """An enabled mod that brings Brazilian Portuguese (tools/make_ptbr_mod.py
+    builds one from the US disc): BR_PORTUGUESE.PSARC, the US voices, beside a
+    GAME.PSARC whose language table lists "17 pt-br BR_PORTUGUESE"; the text,
+    R_LANG_PT-BR, is already on the European disc."""
     folder = Path(mods_dir)
     for name in enabled:
         mod = folder / name
-        if not (mod / 'PORTUGUESE.PSARC').is_file():
-            continue
-        flat = name.lower().replace('-', '').replace('_', '').replace(' ', '')
-        if 'ptbr' in flat or 'brasil' in flat or 'brazil' in flat:
+        if (mod / 'BR_PORTUGUESE.PSARC').is_file() and (mod / 'GAME.PSARC').is_file():
             return mod
-        try:
-            if json.loads((mod / 'mod.json').read_text(encoding='utf-8')).get('language', '').lower() == 'pt-br':
-                return mod
-        except (OSError, ValueError, AttributeError):
-            pass
     return None
 
 
@@ -186,11 +179,10 @@ def apply_save_settings(s):
         return None                                  # no save yet: the console language decides
     if len(data) < 0x29 or data[0:4] != bytes((0, 0, 0, 1)):
         return None
-    lang = int(s['language'])
+    lang = int(effective_language(s))                # 17 only with the PT-BR mod
     if lang in (1, 18):
         text, voice = 18, 1
     else:
-        lang = 7 if lang == 17 else lang             # the disc has one Portuguese
         text = voice = lang
     new = bytearray(data)
     new[0x1C], new[0x1D] = text, voice
@@ -335,7 +327,9 @@ class Launcher:
         s.configure('Page.TLabel', background=PANEL, foreground=TEXT, font=(self.heading, 20))
         s.configure('TCheckbutton', background=PANEL, foreground=TEXT, indicatorcolor=CARD,
                     indicatorbackground=CARD, padding=(0, 3))
-        s.map('TCheckbutton', background=[('active', PANEL)], indicatorcolor=[('selected', ACCENT_HI)])
+        s.map('TCheckbutton', background=[('active', PANEL)],
+              indicatorbackground=[('selected', ACCENT_HI), ('active', LINE)],
+              indicatorforeground=[('selected', '#fbf1e2')])
         s.configure('TCombobox', arrowcolor=GOLD, foreground=TEXT, padding=5, arrowsize=14)
         s.map('TCombobox', fieldbackground=[('readonly', CARD)], foreground=[('readonly', TEXT)],
               selectbackground=[('readonly', CARD)], selectforeground=[('readonly', TEXT)])
@@ -659,8 +653,17 @@ class Launcher:
         self.path_row(f, 'mods_dir', 'Pasta', folder=True)
         self.note(f, 'Cada mod é uma subpasta que espelha o USRDIR do jogo: um mod que troca GAME.PSARC tem '
                      '<mod>/GAME.PSARC. O primeiro da lista vence quando dois mods trazem o mesmo arquivo.')
-        self.note(f, 'Português (Brasil) aparece em Idioma quando um mod ligado traz PORTUGUESE.PSARC e tem PT-BR '
-                     'no nome (ou um mod.json com "language": "pt-BR").')
+        self.section(f, 'Português do Brasil')
+        self.note(f, 'O disco europeu já traz os textos em português do Brasil; as vozes vêm do disco americano. '
+                     'Escolha a imagem (.iso) do seu disco americano, ou a pasta extraída dele, e o launcher monta o '
+                     'mod PT-BR aqui. Com ele ligado, Português (Brasil) aparece em Idioma.')
+        holder = self.ttk.Frame(f)
+        self.ttk.Button(holder, text='Criar mod PT-BR do disco americano (.iso)…',
+                        command=lambda: self.make_ptbr(folder=False)).pack(side='left')
+        self.ttk.Button(holder, text='…ou da pasta extraída', command=lambda: self.make_ptbr(folder=True)).pack(
+            side='left', padx=(8, 0))
+        holder.grid(row=f.next_row, column=0, columnspan=3, sticky='w', pady=(8, 0))
+        f.next_row += 1
         self.section(f, 'Mods instalados')
         self.mods_frame = self.ttk.Frame(f)
         self.mods_frame.grid(row=f.next_row, column=0, columnspan=3, sticky='we')
@@ -698,6 +701,52 @@ class Launcher:
                 row=i, column=2, padx=(16, 2))
             self.ttk.Button(self.mods_frame, text='▼', width=3, command=lambda n=name: self.move_mod(n, 1)).grid(row=i, column=3)
         self.mods_changed()
+
+    def make_ptbr(self, folder):
+        if folder:
+            src = self.filedialog.askdirectory(title='Pasta do disco americano (com PS3_GAME)')
+        else:
+            src = self.filedialog.askopenfilename(title='Imagem do disco americano',
+                                                  filetypes=[('Imagem de disco', '*.iso'), ('Todos', '*.*')])
+        if not src:
+            return
+        out = Path(self.var('mods_dir').get()) / 'PT-BR'
+        eu = Path(self.var('eboot').get()).parent
+        self.refresh_status('Criando o mod PT-BR… (copia ~140 MB)')
+
+        def work():
+            import importlib.util
+            try:
+                spec = importlib.util.spec_from_file_location('make_ptbr_mod', ROOT / 'tools' / 'make_ptbr_mod.py')
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                us, unmount = Path(src), None
+                if us.suffix.lower() == '.iso':
+                    us, unmount = mod.mount_iso(us)
+                elif (us / 'PS3_GAME' / 'USRDIR').is_dir():
+                    us = us / 'PS3_GAME' / 'USRDIR'
+                try:
+                    mod.build(us, eu, out, log=lambda m: None)
+                finally:
+                    if unmount:
+                        unmount()
+                self.root.after(0, self.ptbr_done, None)
+            except BaseException as e:   # SystemExit carries the reason
+                self.root.after(0, self.ptbr_done, str(e) or type(e).__name__)
+        threading.Thread(target=work, daemon=True).start()
+
+    def ptbr_done(self, error):
+        if error:
+            self.refresh_status('O mod PT-BR não foi criado.')
+            self.messagebox.showerror(APP_NAME, 'Não consegui criar o mod PT-BR:\n' + error)
+            return
+        if 'PT-BR' not in self.mod_order:
+            self.mod_order.insert(0, 'PT-BR')
+        self.mod_vars['PT-BR'] = self.tk.BooleanVar(value=True)
+        self.refresh_mods()
+        self.var('language').set('17')
+        self.refresh_choices('language', '7')
+        self.refresh_status('Mod PT-BR criado e ligado; idioma: Português (Brasil). Clique em Salvar.')
 
     def move_mod(self, name, step):
         i = self.mod_order.index(name)
