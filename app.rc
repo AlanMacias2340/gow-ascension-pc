@@ -1,0 +1,2 @@
+// The executable's icon (packaging/make_icons.py draws it).
+1 ICON "packaging/windows/ascension.ico"

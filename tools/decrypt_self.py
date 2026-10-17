@@ -223,24 +223,25 @@ def check_elf(elf, entry, log=print):
 
 
 def selftest():
+    # Made-up keys: the test checks the parser and the lookup, not real keys.
     keys = parse_keys('''
 [appldr]
 type=SELF
 revision=0016
 self_type=APP
-erk=A106692224F1E91E1C4EBAD4A25FBFF66B4B13E88D878E8CD072F23CD1C5BF7C
-riv=62773C70BD749269C0AFD1F12E73909E
+erk=00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF
+riv=0123456789ABCDEF0123456789ABCDEF
 
 [appldr]
 type=SELF
 revision=0016
 self_type=NPDRM
-erk=7910340483E419E55F0D33E4EA5410EEEC3AF47814667ECA2AA9D75602B14D4B
-riv=4AD981431B98DFD39B6388EDAD742A8E
+erk=FFEEDDCCBBAA99887766554433221100FFEEDDCCBBAA99887766554433221100
+riv=FEDCBA9876543210FEDCBA9876543210
 ''')
     assert len(keys) == 2
     erk, riv = find_self_key(keys, 0x16, 'APP')
-    assert erk.hex().upper().startswith('A1066922') and len(erk) == 32 and len(riv) == 16
+    assert erk.hex().upper().startswith('00112233') and len(erk) == 32 and len(riv) == 16
     assert find_self_key(keys, 0x16, 'NPDRM')[0] != erk
     try:
         find_self_key(keys, 0x0A, 'APP')
