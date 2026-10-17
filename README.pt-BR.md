@@ -32,9 +32,10 @@ O Ascension é um experimento de recompilação estática: o código PowerPC (PP
 
 - **Inicia e mostra as telas de abertura**: o texto legal, "Sony Computer Entertainment presents", o logo da Santa Monica Studio e o aviso de jogo online.
 - **Carrega e chega aos primeiros menus**: a escolha de idioma, a tela de ajuste da imagem e a de brilho, desenhadas pelos próprios shaders do jogo, na fonte bronze dele. No primeiro uso ele grava o save do sistema.
-- **Depois dos menus vai para uma tela preta**, que é o próximo ponto a investigar. O controle ainda não foi testado, e roda devagar: o trabalho das SPUs é várias vezes mais lento que num PS3.
+- **Toca a cinemática de abertura**, com imagem e som (MPEG-2 decodificado pelo FFmpeg em tempo de execução). O menu principal depois dela ainda não foi visto, e o controle ainda não foi testado.
+- **Está lento**: cerca de 10 fps no carregamento e nos menus sem save, 33-38 fps na cinemática; um painel no canto superior direito mostra FPS, tempo de quadro, velocidade, CPU e GPU.
 
-Chegar até aqui levou 21 commits de correções no runtime e no renderizador do ps3recomp, todos num [fork](https://github.com/arnaldolima1/ps3recomp/tree/ascension-v0.15) e guardadas aqui em `patches/`: o SPURS de segunda geração (32 workloads, tasksets criados pelas SPUs), a sincronização GPU/SPU (o pós-processo nas SPUs, os semáforos do GCM e os parks do FIFO), o renderizador (a textura da fonte, a saída sRGB, as derivadas nos shaders) e um bug do lifter que corrompia um heap. A história completa, com os próximos passos, está em [docs/STATUS.pt-BR.md](docs/STATUS.pt-BR.md).
+Chegar até aqui levou 22 commits de correções no runtime e no renderizador do ps3recomp, todos num [fork](https://github.com/arnaldolima1/ps3recomp/tree/ascension-v0.15) e guardadas aqui em `patches/`: o SPURS de segunda geração (32 workloads, tasksets criados pelas SPUs), a sincronização GPU/SPU (o pós-processo nas SPUs, os semáforos do GCM e os parks do FIFO), o renderizador (a textura da fonte, a saída sRGB, as derivadas nos shaders) e um bug do lifter que corrompia um heap. A história completa, com os próximos passos, está em [docs/STATUS.pt-BR.md](docs/STATUS.pt-BR.md).
 
 ## Compilando o código
 

@@ -32,9 +32,10 @@ Ascension is a static recompilation experiment: the game's PowerPC (PPU) and SPU
 
 - **It boots and plays the intro screens**: the legal text, "Sony Computer Entertainment presents", the Santa Monica Studio logo and the online-play notice.
 - **It loads and reaches the first menus**: the language prompt, the screen-adjust and brightness screens, drawn by the game's own shaders in its bronze font. On first use it writes its system save.
-- **After the menus it goes to a black screen**, which is the next thing being looked at. The controller has not been tested yet, and it runs slowly: the SPU work is several times slower than on a PS3.
+- **It plays the opening cinematic**, with picture and sound (MPEG-2 decoded by FFmpeg at run time). The main menu after it has not been seen yet, and the controller has not been tested.
+- **It is slow**: about 10 fps through loading and the first-use menus, 33-38 fps in the cinematic; a panel in the top-right corner shows FPS, frame time, speed, CPU and GPU.
 
-Getting this far took twenty-one commits of fixes to ps3recomp's runtime and renderer, all on [a fork](https://github.com/arnaldolima1/ps3recomp/tree/ascension-v0.15) and kept here as `patches/`: the second-generation SPURS (32 workloads, tasksets created from SPUs), GPU/SPU synchronization (the frame's SPU post-process, GCM semaphores and FIFO parks), the renderer (the font texture, sRGB output, shader derivatives), and a lifter bug that corrupted a heap. The full story, with what comes next, is in [docs/STATUS.md](docs/STATUS.md).
+Getting this far took twenty-two commits of fixes to ps3recomp's runtime and renderer, all on [a fork](https://github.com/arnaldolima1/ps3recomp/tree/ascension-v0.15) and kept here as `patches/`: the second-generation SPURS (32 workloads, tasksets created from SPUs), GPU/SPU synchronization (the frame's SPU post-process, GCM semaphores and FIFO parks), the renderer (the font texture, sRGB output, shader derivatives), and a lifter bug that corrupted a heap. The full story, with what comes next, is in [docs/STATUS.md](docs/STATUS.md).
 
 ## Building from source
 

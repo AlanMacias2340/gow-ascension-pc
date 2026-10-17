@@ -260,6 +260,10 @@ elseif(MSVC)
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         _CRT_SECURE_NO_WARNINGS
     )
+    # AscensionRecomp.map beside the executable: the runtime's sampling
+    # profiler (PS3_DEBUG's `prof`) prints module offsets, and a release build
+    # has no other way to name them.
+    target_link_options(${PROJECT_NAME} PRIVATE /MAP)
 endif()
 
 # The lifted translation units are machine-generated and can run to hundreds of

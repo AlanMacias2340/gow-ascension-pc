@@ -34,6 +34,13 @@
 //                      RsxSync's round-2 job unrun until a later kick, which
 //                      never came (the render thread waits on frame slot
 //                      0x99AAC8 for it).
+//   LD_PERF_OVERLAY    frame rate, frame time, speed, CPU and GPU use in the
+//                      top-right corner of the window.
+//   PS3_VERBOSE=0      the per-frame log lines (task creation and joins, SPU
+//                      dispatch, viewport changes, events) stay quiet: every
+//                      guest thread writes them through one FILE lock, and
+//                      they cost the main thread several percent of its time.
+//                      Set PS3_VERBOSE=1 to get them back when investigating.
 //
 // The OS environment is used directly, not getenv(): the boot harness routes
 // getenv through a cache that also remembers a miss, so asking first would pin
@@ -66,7 +73,8 @@ struct AscensionDefaults {
         set_default("GCM_SEMA_ACQUIRE", "1");
         set_default("GCM_PARK_SPU_HOLD_MS", "1000");
         set_default("SPURS_READY_LEVEL", "1");
-    }
+        set_default("LD_PERF_OVERLAY", "1");
+        set_default("PS3_VERBOSE", "0");    }
 } s_defaults;
 
 }  // namespace
