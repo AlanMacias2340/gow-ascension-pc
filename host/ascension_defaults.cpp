@@ -28,6 +28,14 @@
 //                      post-process ACQUIRE: the game relies on the RSX taking
 //                      a frame's time, and without the hold frame 2's reports
 //                      landed while round 1 still ran, so round 2 never began.
+//   GCM_REPORT_SPU_HOLD_MS  a GET_REPORT waits, up to this long, while SPURS
+//                      tasks are out of WAIT_SIGNAL or have a signal pending.
+//                      RsxSync turns each report into a signal for the
+//                      post-process tasks; when the PPU side is quick (job
+//                      module 214 lifted) the GPU's next report reached
+//                      RsxSync before the tasks had started the round, its
+//                      signal was eaten by their barriers, and the game
+//                      stopped at the end of loading every time.
 //   SPURS_READY_LEVEL  readyCount is a level, as the real kernel treats it.
 //                      The Wws job managers zero their own count once their
 //                      jobs are stored; consuming it per admission left
@@ -72,6 +80,7 @@ struct AscensionDefaults {
         set_default("GCM_PARK_WAIT_MS", "2000");
         set_default("GCM_SEMA_ACQUIRE", "1");
         set_default("GCM_PARK_SPU_HOLD_MS", "1000");
+        set_default("GCM_REPORT_SPU_HOLD_MS", "50");
         set_default("SPURS_READY_LEVEL", "1");
         set_default("LD_PERF_OVERLAY", "1");
         set_default("PS3_VERBOSE", "0");    }
@@ -80,10 +89,10 @@ struct AscensionDefaults {
 }  // namespace
 
 // Lifted SPU functions left to the interpreter unless SPU_NOLIFT says
-// otherwise (SPU_NOLIFT=none: all of them registered). Job module 214
-// (jobmod_e9f3f00d551e) runs 0x4418..0x447C with interrupts enabled; lifted,
-// it is interrupted at trampoline steps and the game stops at the end of
-// loading, interpreted it is never interrupted. Read by the runtime's
-// registration, which runs in static constructors, so it is a constant and
-// not an environment default.
-extern "C" const char* const spu_title_nolift = "214:4418";
+// otherwise. None now: job module 214 (jobmod_e9f3f00d551e) from 0x4418 used
+// to be kept interpreted because lifting it stopped the game at the end of
+// loading; that was the report race GCM_REPORT_SPU_HOLD_MS closes (the lift
+// itself checked out under SPU_SHADOW). Read by the runtime's registration,
+// which runs in static constructors, so it is a constant and not an
+// environment default.
+extern "C" const char* const spu_title_nolift = nullptr;

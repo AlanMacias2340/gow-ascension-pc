@@ -42,11 +42,11 @@ On macOS the same intro screens drew through Metal before the re-lift below; the
 ## Next
 
 1. **A shorter frame.** The main loop runs at ~24-33 Hz, waiting on the per-frame chain (`tools/frame_timeline.py`: the GPU's last report ~13 ms into the frame, the EDGE lists done ~25 ms in); the SPU threads are mostly idle. Candidates: the RSX thread's CPU texture work (`decode_texel`, `nv3089_blit`), the EDGE lists' latency.
-2. **The cinematic falls behind its audio** (75-85%): the player's demuxer (`func_003C7338`, once per main-loop iteration) loads one 64 KB block of `OPENINGINT6.M2V` per iteration, and the stream needs ~2 MB/s, so the video keeps up only above ~33 loop iterations a second (the PS3 runs it at 60). Item 1 fixes it; nothing in the video path is wrong.
+2. ~~**The cinematic falls behind its audio**~~ fixed (2026-10-17): video decoded at 29.98 fps for the whole movie, in sync. Remaining: a slight judder, the main loop at ~35 Hz against the 30 fps movie.
 2b. **Job module 214's entry `0x4418`** stalls the game at the end of loading when it is lifted: it sits between a `bihz` that enables interrupts (`0x4414`) and one that disables them (`0x447C`), and the interpreter's `biz`/`bihz` ignore the E/D bits that lifted code applies. Left out of `tools/jobmods_extra_funcs.json`; probably the same root as item 5.
-3. **The main menu after the cinematic:** let it finish (~4 min) or skip it, and see what follows.
+3. **The main menu after the cinematic:** it renders now, at ~1 fps. Next.
 4. **Controller input:** confirm the menus answer the pad (the prompts wait for triangle or cross).
-5. **Intermittent stall:** about one run in two stops at the end of loading, the post-process tasks parked in `WAIT_SIGNAL`.
+5. ~~**Intermittent stall**~~ fixed (2026-10-17): the GPU's next report overtook RsxSync's round (`GCM_REPORT_SPU_HOLD_MS`, patch 0029); job module 214 runs lifted.
 6. **Depth read as ARGB8:** the game samples its zeta as an ARGB8 texture (the usual PS3 trick) and live draw only binds the depth snapshot for `DEPTH24_D8` reads; the post-process (SSAO and so on) gets zeros.
 7. **macOS:** re-lift with the v0.15 lifter and bring the Mac build to the same point.
 8. Smaller: `GET_REPORT` type 255 should write nothing; `[null-read]`'s cap sometimes resets mid-run.
@@ -59,6 +59,7 @@ On the branch [`ascension-v0.15` of the fork `arnaldolima1/ps3recomp`](https://g
 
 What each step found, newest first. Addresses are the game's (EU 1.00).
 
+- **Cinematic at full speed, in sync; end-of-loading stall gone** (2026-10-17, Windows). A GET_REPORT waits while the post-process tasks are still in a round (`GCM_REPORT_SPU_HOLD_MS=50`): RsxSync turns each report into a signal, and with job module 214 lifted the next report arrived before the tasks began, so its signal was eaten and the game stopped every time. Then three causes of hitches: the hold timed with GetTickCount (15.6 ms steps), so it waited a frame; task waits that missed their wake and slept out a 1 s timeout (now re-checked every 2 ms, `[missed-wake]`); `cellVdecDecodeAu` returned BUSY on a full picture queue where the decoder holds the AU. Result: video 29.98 fps, loop ~35 Hz, longest frame 44 ms. ps3recomp `7744141`, patch 0029.
 - **Menus ~10 → 26-55 fps; why the cinematic lags its audio** (2026-10-17, Windows).
   - **Code fragments.** Module 209 does not copy code: each job's DMA list streams up to three code fragments from the EBOOT (`0x718E00`-`0x72A000`, packed back to back) into its input buffer (LS `0x11000`/`0x1D000`), at addresses that depend on the sizes before them. Lifted once each, position-independently: PC-derived addresses add `ctx->pic_delta`, set when dispatch enters the fragment's span. `tools/job_fragments.json`, images 300-333.
   - **The interpreter's rejoin** only looked at the context's own image, so a job that fell to the interpreter once ran the rest of its body interpreted. `spu_lifted_probe` sees the streamed spans too; rejoining a job module's functions from interpreted code stalls the game (`SPU_PROBE` mask 4, 7 runs of 7), so job-module entries go into the lift instead: 27 found with `SPU_INTERP_HIST`, the 28th (214:`0x4418`, an interrupt window) found by bisection with `SPU_NOLIFT`.
