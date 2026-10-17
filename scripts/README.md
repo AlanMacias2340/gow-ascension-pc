@@ -6,6 +6,7 @@ PowerShell helpers for the Windows build. Run them from anywhere; paths are take
 |---|---|
 | `build.ps1 [-Name x]` | `vcvars64` + `ninja -C build\win`, log in `build\logs\build[-x].log`; prints the time, the error lines and the last line. |
 | `run.ps1 [-Seconds 120] [-Save fresh\|backup\|keep] [-Name run] [-Env @{...}] [-Profile [-ProfileAt 45]]` | Runs the game with the window visible for a while, then kills it and prints `tools\log_summary.py`. `fresh` (default) moves the save aside so the first-use menus show; `backup` puts `work\save-backup` in place (straight to the cinematic). `-Profile` samples the busiest threads with `tools\profile_threads.py`. |
+| `launcher.ps1 [-Play]` | Opens the launcher (`launcherscension_launcher.py`): window, language, mods, music; `-Play` starts the game with the saved settings. |
 | `relift.ps1 jobmods [-Only <sha>]` | Re-lifts the SPU job modules with `tools\jobmods_extra_funcs.json`; `-Only` re-lifts one module and copies only its sources, so only it recompiles. |
 | `relift.ps1 fragments` | Lifts `tools\job_fragments.json` position-independently into `src\spu\pic_*`. |
 

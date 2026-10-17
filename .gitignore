@@ -14,3 +14,7 @@
 __pycache__/
 recomp_spu_ls.bin
 scratch/
+
+# Launcher artwork and music (not ours to publish) and installed mods.
+/launcher/assets/
+/mods/
