@@ -4,7 +4,7 @@ usage: python tools/frame_timeline.py build/logs/<run>.log [--frames 200] [--sho
 
 Run the game with (scripts/run.ps1 -Env @{...}):
     SPU_ATOM_EA=99AA80 SPU_ATOM_EA_MAX=1 PPU_WWATCH=99AA80 PPU_WWATCH_LEN=0x80
-    PPU_WWATCH_MAX=300000 GCM_REPORTLOG=1000000   [VDEC_TIMELOG=1]
+    PPU_WWATCH_MAX=300000 GCM_REPORTLOG=1000000   [VDEC_TIMELOG=1] [SPU_TASK_TIMELOG=1]
 The 128-byte line at 0x99AA80 holds the frame's dependency counters
 (0x99AA84 + 4f), MeshProc's (0x99AAA4), the EDGE lists' (0x99AAB0 + 4i) and the
 frame slots the render thread waits on (0x99AAC0 + 4i); the PPU starts frame f
@@ -15,6 +15,7 @@ video picture taken (VDEC_TIMELOG). --show prints the raw events of that many
 frames too.
 """
 import argparse
+import collections
 import re
 import statistics
 
@@ -33,7 +34,10 @@ def parse(path):
             ev.append((int(m.group(1)), "R", (int(m.group(2)), int(m.group(3), 16)))); continue
         m = re.search(r"\[vdec-time\] t=(\d+)us", l)
         if m:
-            ev.append((int(m.group(1)), "V", ()))
+            ev.append((int(m.group(1)), "V", ())); continue
+        m = re.search(r"\[task-time\] t=(\d+)us (enter|exit) task=(\d+)", l)
+        if m:
+            ev.append((int(m.group(1)), "T", (int(m.group(3)), m.group(2))))
     ev.sort()
     return ev
 
@@ -67,11 +71,24 @@ def main():
             "MeshProc done (wid 14)": last(lambda x: x[1] == "S" and x[2][0] == 14),
             "EDGE done (wid 15-17)": last(lambda x: x[1] == "S" and x[2][0] in (15, 16, 17)),
             "video picture": first(lambda x: x[1] == "V"),
+            "tasks first wake": first(lambda x: x[1] == "T" and x[2][1] == "exit"),
+            "tasks last park": last(lambda x: x[1] == "T" and x[2][1] == "enter"),
         })
+        # time each task spent out of WAIT_SIGNAL in this frame
+        busy, out = collections.Counter(), {}
+        for x in seg:
+            if x[1] != "T":
+                continue
+            tid, what = x[2]
+            if what == "exit":
+                out[tid] = x[0]
+            elif tid in out:
+                busy[tid] += x[0] - out.pop(tid)
+        rows[-1]["task busy sum"] = sum(busy.values()) / 1000 if busy else None
         if fi >= len(starts) - 1 - a.show:
             print(f"--- frame of {(e - s) / 1000:.1f} ms")
             for x in seg:
-                kind = {"R": "GPU", "S": "SPU", "P": "PPU", "V": "VID"}[x[1]]
+                kind = {"R": "GPU", "S": "SPU", "P": "PPU", "V": "VID", "T": "TSK"}[x[1]]
                 print(f"  {rel(x):7.2f} {kind} {x[2] if x[1] != 'S' else ('wid', x[2][0], 'lr', x[2][1])}")
     print(f"{len(rows)} frames; ms from the frame's start (median, and in how many frames it happened):")
     for k in rows[0]:
