@@ -1,65 +1,80 @@
 <div align="center">
 
-<img src="packaging/icon.png" alt="Ascension icon" width="128">
+<img src="packaging/icon.png" alt="Ícone do Ascension" width="128">
 
 # Ascension
 
-**God of War: Ascension (PS3), an experiment in recompiling it to run natively on a PC.**
+**God of War: Ascension (PS3), recompilado para rodar nativamente no PC.**
 
-[![Status](https://img.shields.io/badge/status-experiment-lightgrey)](docs/STATUS.md)
-[![Release](https://img.shields.io/badge/release-none%20yet-lightgrey)](#where-it-is)
-[![Windows](https://img.shields.io/badge/Windows-10%2F11%20x64-0078D4)](#building-from-source)
-[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-000000)](#building-from-source)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Status](https://img.shields.io/badge/status-experimento-lightgrey)](docs/STATUS.md)
+[![Release](https://img.shields.io/badge/release-ainda%20n%C3%A3o-lightgrey)](#onde-estamos)
+[![Windows](https://img.shields.io/badge/Windows-10%2F11%20x64-0078D4)](#compilando)
+[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-000000)](#compilando)
+[![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-green)](LICENSE)
 
-**English** · [Português (Brasil)](README.pt-BR.md)
+**Português (Brasil)** · [English](docs/README.en.md)
 
 </div>
 
 ---
 
-Ascension is a static recompilation experiment: the game's PowerPC (PPU) and SPU code is translated ahead of time into C++ and compiled for your machine, on top of [ps3recomp](https://github.com/sp00nznet/ps3recomp)'s runtime and system libraries. It is a sibling of [Sparta](https://github.com/arnaldolima1/gow-ghost-of-sparta-pc) and [Olympus](https://github.com/arnaldolima1/gow-chains-of-olympus-pc), which do the same for the PSP games on PortableKit.
+O Ascension traduz o código do jogo, do processador principal (PPU) e dos SPUs do PS3, para C++ e o compila para o seu PC, sobre o runtime do [ps3recomp](https://github.com/sp00nznet/ps3recomp). Não é um emulador: é o próprio jogo, recompilado. É irmão do [Sparta](https://github.com/arnaldolima1/gow-ghost-of-sparta-pc) e do [Olympus](https://github.com/arnaldolima1/gow-chains-of-olympus-pc), que fazem o mesmo com os God of War de PSP.
 
 > [!WARNING]
-> **An experiment, for curiosity: not playable.** The game boots and reaches its first menus, and that is all. The PS3 is far harder than the PSP: the game leans on six SPUs (SPURS jobs, Edge geometry, post-processing), and no ps3recomp port draws its 3D world yet. Windows and macOS (Apple Silicon); no Android.
+> **Um experimento: ainda não dá para jogar do começo ao fim.** O jogo abre, passa pelos menus e toca a cinemática de abertura; o menu principal já aparece, mas ainda lento. Windows e macOS (Apple Silicon).
 
 > [!IMPORTANT]
-> **No game data is included.** You need your own copy of the game: the **European release, `BCES-01741`** (1.00), as a disc image of your own disc. Nobody here can give you a copy, keys, or tell you where to get them. Ascension is not affiliated with Sony Interactive Entertainment or Santa Monica Studio.
+> **Nenhum dado do jogo está incluído.** Você precisa da sua própria cópia, a **versão europeia `BCES-01741`** (1.00), tirada do seu disco. Ninguém aqui pode te dar o jogo ou chaves. Projeto de fãs, sem ligação com a Sony Interactive Entertainment ou a Santa Monica Studio.
 
-## Where it is
+## Onde estamos
 
-**There is no release yet**: to try it, build it from source (below). As of October 2026, on Windows:
+Em outubro de 2026, no Windows:
 
-- **It boots and plays the intro screens**: the legal text, "Sony Computer Entertainment presents", the Santa Monica Studio logo and the online-play notice.
-- **It loads and reaches the first menus**: the language prompt, the screen-adjust and brightness screens, drawn by the game's own shaders in its bronze font. On first use it writes its system save.
-- **It plays the opening cinematic**, with picture and sound (MPEG-2 decoded by FFmpeg at run time). The main menu after it has not been seen yet, and the controller has not been tested.
-- **It is slow**: about 10 fps through loading and the first-use menus, 33-38 fps in the cinematic; a panel in the top-right corner shows FPS, frame time, speed, CPU and GPU.
+- **Abertura e menus:** as telas de abertura, o carregamento e os menus de primeiro uso (idioma, ajuste de imagem, brilho), desenhados pelos shaders do próprio jogo, respondendo ao controle e ao teclado.
+- **Cinemática de abertura** com imagem e som sincronizados, na velocidade certa (30 fps).
+- **Menu principal:** já desenha o cenário, mas a cerca de 1 fps. É o próximo passo.
+- **Launcher** com configurações de vídeo, idioma, legendas e mods; o jogo roda dentro da janela dele.
 
-Getting this far took twenty-two commits of fixes to ps3recomp's runtime and renderer, all on [a fork](https://github.com/arnaldolima1/ps3recomp/tree/ascension-v0.15) and kept here as `patches/`: the second-generation SPURS (32 workloads, tasksets created from SPUs), GPU/SPU synchronization (the frame's SPU post-process, GCM semaphores and FIFO parks), the renderer (the font texture, sRGB output, shader derivatives), and a lifter bug that corrupted a heap. The full story, with what comes next, is in [docs/STATUS.md](docs/STATUS.md).
+Ainda não há release. O andamento detalhado está em [docs/STATUS.md](docs/STATUS.md) e os marcos em [docs/MILESTONES.md](docs/MILESTONES.md).
 
-## Building from source
+## Jogando
 
-The layout this repository expects, with ps3recomp checked out beside it:
+Com o jogo compilado (abaixo), abra o launcher:
+
+```powershell
+.\scripts\launcher.ps1
+```
+
+JOGAR abre o jogo dentro da própria janela do launcher.
+
+- **Vídeo:** janela ou tela cheia (F11 ou Alt+Enter também alternam durante o jogo), tamanho da janela, contador de FPS.
+- **Jogo:** idioma (inglês, português, espanhol, francês, alemão, italiano, russo, polonês, turco) e legendas, que valem mesmo depois do primeiro uso; botão de confirmar; backup automático dos saves.
+- **Mods:** pastas que substituem arquivos do jogo, em ordem de prioridade.
+
+Controles no teclado: setas (direcional), Z/X/A/S (X, O, quadrado, triângulo), Q/W (L1/R1), 1/2 (L2/R2), Enter (START), Tab (SELECT). Um controle conectado tem prioridade.
+
+## Compilando
 
 ```
 ascension-recomp/
   ps3recomp/    https://github.com/arnaldolima1/ps3recomp, branch ascension-v0.15
-                (or https://github.com/sp00nznet/ps3recomp v0.15.0 with patches/ applied)
-  ascension/    this repository
-  work/         your disc and EBOOT, and what is made from them (never committed)
+  ascension/    este repositório
+  work/         o seu disco e o que sai dele (nunca vai para o git)
 ```
 
-1. **The executable.** Take `PS3_GAME/USRDIR/EBOOT.BIN` from your disc image and decrypt it to `EBOOT.ELF`, either with RPCS3 (*Utilities › Decrypt PS3 Binaries*, with the console's firmware installed) or with `python tools/decrypt_self.py EBOOT.BIN -o EBOOT.ELF --keys <your scetool key file>`. Its key revision is `0x001C`.
-2. **Analysis and lifting** with ps3recomp's pipeline (`elf_parser.py`, `find_functions.py`, `extract_spu_images.py`, `ppu_loader.py`, `ppu_lifter.py`): the steps are in ps3recomp's [Getting Started](https://github.com/sp00nznet/ps3recomp/blob/master/docs/GETTING_STARTED.md), and the lift command this game uses is in [docs/STATUS.md](docs/STATUS.md#the-pipeline). Use the v0.15 lifter: an older one corrupts the game's heap.
-3. **Build** with CMake and Ninja: on Windows with Visual Studio 2022 (clang-cl); on macOS with Apple clang (the Xcode command-line tools) and `brew install cmake ninja sdl2 glslang spirv-cross ffmpeg`, configured with `-DPS3RECOMP_FFMPEG_RUNTIME=ON` so `cellVdec` can decode the opening cinematic (MPEG-2). The Python tools need 3.10 or newer. The generated code is large: a build from scratch takes 20-40 minutes and wants 16 GB of memory.
-4. **Run.** Extract your disc to `work/disc` (so that `work/disc/PS3_GAME/USRDIR` exists) and put `EBOOT.ELF` next to `EBOOT.BIN` there. On Windows, from this directory: `build\win\AscensionRecomp.exe ..\work\disc\PS3_GAME\USRDIR\EBOOT.ELF`. On macOS, `tools/run_mac.sh` mounts the disc image at `work/disc` and runs the game in a window (`ASCENSION_ISO=<path to the .iso>` the first time). Saves go to `gamedata/dev_hdd0`.
+1. **Disco:** extraia a sua imagem em `work/disc` e decripte `PS3_GAME/USRDIR/EBOOT.BIN` para `EBOOT.ELF` (com o RPCS3, ou `tools/decrypt_self.py` e o seu arquivo de chaves).
+2. **Tradução:** gere o código com o pipeline do ps3recomp. Os comandos exatos estão em [docs/STATUS.md](docs/STATUS.md#how-it-is-built).
+3. **Build:** CMake e Ninja; no Windows com o Visual Studio 2022 (clang-cl) e `.\scripts\build.ps1`, no macOS com o Apple clang. Um build do zero leva de 20 a 40 minutos e pede 16 GB de memória.
 
-## Credits
+Os saves ficam em `gamedata/dev_hdd0`.
 
-- [ps3recomp](https://github.com/sp00nznet/ps3recomp) by sp00nznet and contributors: the recompiler, runtime and system libraries.
-- `tools/decrypt_self.py` comes from [Twisted Metal](https://github.com/sp00nznet/twistedmetal)'s port (MIT), adapted to read newer scetool key files.
-- God of War is a trademark of Sony Interactive Entertainment. This is an unofficial project.
+## Créditos
 
-## License
+- [ps3recomp](https://github.com/sp00nznet/ps3recomp), de sp00nznet e colaboradores: o recompilador, o runtime e as bibliotecas de sistema.
+- `tools/decrypt_self.py`, do port do [Twisted Metal](https://github.com/sp00nznet/twistedmetal) (MIT).
+- O launcher segue o estilo do de [gow3_pc](https://github.com/FelipePrado0/gow3_pc); fonte Cinzel (SIL Open Font License).
+- God of War é marca registrada da Sony Interactive Entertainment.
 
-MIT: see [LICENSE](LICENSE). It covers this repository's code only, not the game.
+## Licença
+
+MIT: veja [LICENSE](LICENSE). Vale só para o código deste repositório, não para o jogo.

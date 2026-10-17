@@ -1,64 +1,95 @@
 # Status
 
-Where the experiment stands, as of 2026-10-17. Machines: Windows 11, AMD Ryzen 7 5700G, Radeon RX 7600, 16 GB; and a Mac, Apple M4, 16 GB, macOS 26. Em português: [STATUS.pt-BR.md](STATUS.pt-BR.md).
+Where the experiment stands, as of 2026-10-17, and how it got there. The milestones are in [MILESTONES.md](MILESTONES.md); the project's overview in the [README](../README.md) ([English](README.en.md)). Machines: Windows 11, AMD Ryzen 7 5700G, Radeon RX 7600, 16 GB; and a Mac, Apple M4, 16 GB, macOS 26.
+
+## Contents
+
+- [Where it is](#where-it-is)
+- [Next](#next)
+- [How it is built](#how-it-is-built)
+- [Runtime switches](#runtime-switches)
+- [The game's own data](#the-games-own-data)
+- [ps3recomp changes](#ps3recomp-changes)
+- [Debugging log](#debugging-log)
+- [Found so far](#found-so-far)
+- [Gaps the imports show](#gaps-the-imports-show)
 
 ## Where it is
 
-**On Windows the game boots, plays its intro screens, loads, goes through its first menus and plays the opening cinematic with picture and sound**: the language prompt, the screen-adjust and brightness screens, drawn by the game's own shaders in its own bronze font; then `OPENINGINT6.M2V`, decoded by FFmpeg. On first use it writes its system save (`BCES01741-SYSDATA`). Controller input has not been tested, and the main menu after the cinematic has not been seen yet (the cinematic runs about 4 minutes). It is still slow: 26-55 fps in the first-use menus, 45-60 in the cinematic (both were ~10 and ~33-38 the morning of 2026-10-17), and the cinematic's video runs at 75-85% of its audio's speed (see Next); a panel in the top-right corner shows FPS, frame time, speed, CPU and GPU. There is no release; build it from source to try it.
+**Windows.** The game boots, plays its intro screens, loads, goes through its first-use menus (language, screen adjustment, brightness, drawn by its own shaders in its bronze font) and plays the opening cinematic, `OPENINGINT6.M2V`, with picture and sound in sync: the video decodes at 29.98 fps for the whole movie. The menus answer the controller and the keyboard. After the cinematic the main menu draws its scene, at about 1 fps. The first-use menus run at 45-90 fps, the main loop at ~35 Hz during the cinematic; a panel in the top-right corner shows FPS, frame time, speed, CPU and GPU. Every SPU job module now runs lifted. The launcher (`launcher/`, `scripts/launcher.ps1`) sets the window, language, subtitles and mods, and the game renders inside its window.
 
-On macOS the same intro screens drew through Metal before the re-lift below; the Mac build needs the same re-lift (with ps3recomp's v0.15 lifter) to catch up.
+**macOS.** The intro screens drew through Metal on the first lift; the Mac build needs the re-lift with ps3recomp's v0.15 lifter to catch up.
 
-## Milestones
-
-| Date | Milestone |
-| --- | --- |
-| 2026-10-15 | `EBOOT.BIN` decrypted, imports and functions found, 1.8 million lines of C++ lifted and compiled; the executable starts. |
-| 2026-10-15 | Boots through the system checks and mounts the game's archives (`sys_lwcond_t` layout, files past 2 GB, Edge Zlib on the host). |
-| 2026-10-15 | Intro screens render: the legal text, "Sony Computer Entertainment presents", Santa Monica Studio, the online-play notice (live draw engine). The same on macOS through Metal. |
-| 2026-10-16 | The main renderer runs past its second frame: SPURS2 (32 workloads, tempArea, flags1), the frame's SPU post-process, GPU/SPU synchronization (`GCM_SEMA_ACQUIRE`, `GCM_PARK_SPU_HOLD_MS`, `SPURS_READY_LEVEL`). |
-| 2026-10-16 | Re-lifted with the v0.15 lifter (a spill-reload bug corrupted a heap at frame ~12): the loading screen. |
-| 2026-10-16 | Past the loading screen (SPURS tasksets: duplicate starts, Taskset2 size and event flags, SPU-created tasks). |
-| 2026-10-16 | The menus read: X16 font atlas, framebuffer sRGB and texture gamma, fragment `DDX`/`DDY` in the live draw engine. |
-| 2026-10-17 | The "black screen" after the menus was the game's fade card waiting for the opening cinematic: `cellVdecQueryAttrEx`/`cellVdecOpenEx`, timestamps numbered for MPEG-2 AUs without PTS, `frame_rate_code` in `CellVdecMpeg2Info`, FFmpeg at run time on Windows. The cinematic plays with picture and sound. |
-| 2026-10-17 | Performance: the 15 Wws job modules (run by the SPU interpreter until now) lifted and registered by content signature, per-frame logging behind `PS3_VERBOSE`, a performance panel (`LD_PERF_OVERLAY`). First-use menus: 5-6 → ~10 fps. |
-| 2026-10-17 | Performance, part two: module 209's code fragments lifted position-independently, 27 more job-module entries, SSE4.1 for lifted SPU code and SSE4.1 SPU float ops (patches 0023-0025). First-use menus ~10 → 26-55 fps, cinematic ~35 → 45-60 fps. |
-
-## The pipeline
-
-| Step | State |
-| --- | --- |
-| Disc identity | `BCES-01741`, *God of War: Ascension (EU)*, 1.00, firmware 4.31. The image keeps the disc's region table but its sectors are already decrypted. |
-| `EBOOT.BIN` | Extracted: 8,586,688 bytes, SHA-256 `0ecbc9c0cd0bf4a493611148e7d7d4a3ba48d7948ecb7969c6e735fca9bb0b9f`, a SELF (version 2, key revision `0x001C`). |
-| `EBOOT.BIN` → `EBOOT.ELF` | **Done** (RPCS3): 8,584,256 bytes, SHA-256 `93d94d54ba5dd76ed2d6c86b6558f4f8d2e02355604abca26e0bb71267943be5`. ELF64, big-endian, PowerPC 64, entry OPD `0x808360` (code `0x10410`), TOC `0x81EF60`. No section headers. |
-| Imports / NIDs | **Done:** 345 imports from 25 libraries; 308 resolve to a name. About 243 of them are named somewhere in ps3recomp's libraries (an upper bound on what is implemented). |
-| Function boundaries | **Done:** 19,199 functions (`find_functions.py`), every `.opd` descriptor a function start; 7,556 OPD entries. Code ends at `0x62C4CC`, right after the import stubs (`0x627954`-`0x62C494`). |
-| SPU images | **Done:** 4 embedded (176 KB, `extract_spu_images.py`) plus the `Wws_Job` policy module (`tools/extract_spu_pm.py`), lifted and registered by fingerprint (`build_spu_workloads.py`). |
-| PPU lifting | **Done** with the v0.15 lifter: 19,570 functions, 1.8 million lines of C++ (126 MB) in 12 units of 150,000 lines (each fits a 16 GB machine), 62 jump tables, 676 mid-function entries, 345 import stubs as HLE calls. `python ps3recomp/tools/ppu_lifter.py work/input/EBOOT.elf --functions meta/functions.json --hle-stubs meta/EBOOT.imports.json --toc 0x81EF60 --code-end 0x62C4CC --chunk-lines 150000 -o src/recomp`; under a minute. |
-| SPU job modules | **Done:** the 15 Wws modules the job manager streams from the EBOOT (`0x6B2480`-`0x82B780`), dumped with `SPU_DUMP_OVL=<dir>,0x4000` and lifted with `python ps3recomp/tools/lift_jobmods.py --jobmods work/jobmods --out ascension/src/spu --register ascension/src/spu/jobmods_register.c --symbol-prefix ascension --extra-funcs-json ascension/tools/jobmods_extra_funcs.json` (images 200-214). The policy module was re-lifted with extra entries: `build_spu_workloads.py ... --relift --extra-funcs spu_wws_pm_at_0077CA80=0xA2C,0xA68,0x3368,0x3378`. |
-| Build | **Done:** `AscensionRecomp.exe`, ~89 MB, clang-cl and Ninja with `-j 4`, 20-40 minutes from scratch. The project is ps3recomp's `templates/project`, pointed at `../ps3recomp`, `src/recomp` and `src/spu`. Configured with `-DPS3RECOMP_FFMPEG_RUNTIME=ON -DPS3RECOMP_FFMPEG_INCLUDE_DIR=<work/deps/ffmpeg-9.0.2-include>` (FFmpeg 9.0.2 headers), with `avcodec-63.dll`, `avutil-61.dll` and `swresample-7.dll` beside the executable (a copy in `work/deps/ffmpeg-9.0.2-bin`). The link writes `AscensionRecomp.map`, which names the addresses the sampling profiler prints (`PS3_DEBUG=<file>`, command `prof <tid> <s>`). |
-| Boot | **To the opening cinematic** (see above). Runtime switches this title needs are set in `host/ascension_defaults.cpp`. |
-| macOS | **The intro screens, through Metal**, on the first lift; to be re-lifted. `tools/run_mac.sh` runs it in a window. |
+There is no release.
 
 ## Next
 
-1. **A shorter frame.** The main loop runs at ~24-33 Hz, waiting on the per-frame chain (`tools/frame_timeline.py`: the GPU's last report ~13 ms into the frame, the EDGE lists done ~25 ms in); the SPU threads are mostly idle. Candidates: the RSX thread's CPU texture work (`decode_texel`, `nv3089_blit`), the EDGE lists' latency.
-2. ~~**The cinematic falls behind its audio**~~ fixed (2026-10-17): video decoded at 29.98 fps for the whole movie, in sync. Remaining: a slight judder, the main loop at ~35 Hz against the 30 fps movie.
-2b. **Job module 214's entry `0x4418`** stalls the game at the end of loading when it is lifted: it sits between a `bihz` that enables interrupts (`0x4414`) and one that disables them (`0x447C`), and the interpreter's `biz`/`bihz` ignore the E/D bits that lifted code applies. Left out of `tools/jobmods_extra_funcs.json`; probably the same root as item 5.
-3. **The main menu after the cinematic:** it renders now, at ~1 fps. Next.
-4. **Controller input:** confirm the menus answer the pad (the prompts wait for triangle or cross).
-5. ~~**Intermittent stall**~~ fixed (2026-10-17): the GPU's next report overtook RsxSync's round (`GCM_REPORT_SPU_HOLD_MS`, patch 0029); job module 214 runs lifted.
-6. **Depth read as ARGB8:** the game samples its zeta as an ARGB8 texture (the usual PS3 trick) and live draw only binds the depth snapshot for `DEPTH24_D8` reads; the post-process (SSAO and so on) gets zeros.
-7. **macOS:** re-lift with the v0.15 lifter and bring the Mac build to the same point.
-8. Smaller: `GET_REPORT` type 255 should write nothing; `[null-read]`'s cap sometimes resets mid-run.
+1. **The main menu (~1 fps).** It renders after the cinematic; find what the frame waits on there (`tools/frame_timeline.py`, the sampling profiler).
+2. **A shorter frame.** The main loop runs at ~35 Hz against the PS3's 60; the cinematic shows a slight judder because of it (35 loop iterations against 30 movie frames). Candidates: the RSX thread's CPU texture work (`decode_texel`, `nv3089_blit`), the EDGE lists' latency.
+3. **Depth read as ARGB8:** the game samples its zeta as an ARGB8 texture (the usual PS3 trick) and live draw only binds the depth snapshot for `DEPTH24_D8` reads; the post-process (SSAO and so on) gets zeros.
+4. **Brazilian Portuguese:** this disc has one Portuguese (Portugal). Try the US release's language archive as a mod over `PORTUGUESE.PSARC` (the launcher offers PT-BR when such a mod is on); failing that, a port of the US release.
+5. **macOS:** re-lift with the v0.15 lifter and bring the Mac build to the same point.
+6. Smaller: `GET_REPORT` type 255 should write nothing; `[null-read]`'s cap sometimes resets mid-run; the Greek voices are still only offered by the game itself at its first start.
+
+## How it is built
+
+The layout is `ascension-recomp/{ps3recomp, ascension, work}`; `ps3recomp` is the fork's branch `ascension-v0.15`, or v0.15.0 with `patches/` applied.
+
+| Step | State |
+| --- | --- |
+| Disc identity | `BCES-01741`, *God of War: Ascension (EU)*, 1.00, firmware 4.31. The image keeps the disc's region table but its sectors are already decrypted. Extract it into `work/disc` (so that `work/disc/PS3_GAME/USRDIR` exists). |
+| `EBOOT.BIN` | 8,586,688 bytes, SHA-256 `0ecbc9c0cd0bf4a493611148e7d7d4a3ba48d7948ecb7969c6e735fca9bb0b9f`, a SELF (version 2, key revision `0x001C`). |
+| `EBOOT.BIN` → `EBOOT.ELF` | With RPCS3 (*Utilities › Decrypt PS3 Binaries*, the console firmware installed) or `python tools/decrypt_self.py EBOOT.BIN -o EBOOT.ELF --keys <scetool keys file>`: 8,584,256 bytes, SHA-256 `93d94d54ba5dd76ed2d6c86b6558f4f8d2e02355604abca26e0bb71267943be5`. ELF64, big-endian, PowerPC 64, entry OPD `0x808360` (code `0x10410`), TOC `0x81EF60`, no section headers. Put it beside `EBOOT.BIN`. |
+| Imports / NIDs | 345 imports from 25 libraries; 308 resolve to a name. About 243 of them are named somewhere in ps3recomp's libraries (an upper bound on what is implemented). |
+| Function boundaries | 19,199 functions (`find_functions.py`), every `.opd` descriptor a function start; 7,556 OPD entries. Code ends at `0x62C4CC`, right after the import stubs (`0x627954`-`0x62C494`). |
+| SPU images | 4 embedded (176 KB, `extract_spu_images.py`) plus the `Wws_Job` policy module (`tools/extract_spu_pm.py`), lifted and registered by fingerprint (`build_spu_workloads.py`). The policy module is re-lifted with extra entries: `build_spu_workloads.py ... --relift --extra-funcs spu_wws_pm_at_0077CA80=0xA2C,0xA68,0x3368,0x3378`. |
+| PPU lifting | With the v0.15 lifter (an older one corrupts the game's heap): 19,570 functions, 1.8 million lines of C++ (126 MB) in 12 units of 150,000 lines (each fits a 16 GB machine), 62 jump tables, 676 mid-function entries, 345 import stubs as HLE calls. `python ps3recomp/tools/ppu_lifter.py work/input/EBOOT.elf --functions meta/functions.json --hle-stubs meta/EBOOT.imports.json --toc 0x81EF60 --code-end 0x62C4CC --chunk-lines 150000 -o src/recomp`; under a minute. |
+| SPU job modules | The 15 Wws modules the job manager streams from the EBOOT (`0x6B2480`-`0x82B780`), dumped with `SPU_DUMP_OVL=<dir>,0x4000` and lifted with `scripts\relift.ps1 jobmods` (`lift_jobmods.py --extra-funcs-json tools/jobmods_extra_funcs.json`, images 200-214). Module 209's streamed code fragments are lifted position-independently with `scripts\relift.ps1 fragments` (`tools/job_fragments.json`, images 300-333). |
+| Build | `AscensionRecomp.exe`, ~89 MB: CMake and Ninja; on Windows clang-cl from Visual Studio 2022 (`scripts\build.ps1`), on macOS Apple clang with `brew install cmake ninja sdl2 glslang spirv-cross ffmpeg`. Configured with `-DPS3RECOMP_FFMPEG_RUNTIME=ON` (and on Windows `-DPS3RECOMP_FFMPEG_INCLUDE_DIR=<work/deps/ffmpeg-9.0.2-include>`, with `avcodec-63.dll`, `avutil-61.dll` and `swresample-7.dll` beside the executable) so `cellVdec` decodes the MPEG-2 cinematic. Python tools need 3.10 or newer. 20-40 minutes from scratch, 16 GB of memory. The link writes `AscensionRecomp.map`, which names the addresses the sampling profiler prints (`PS3_DEBUG=<file>`, command `prof <tid> <s>`). |
+| Running | The launcher (`scripts\launcher.ps1`), or `build\win\AscensionRecomp.exe ..\work\disc\PS3_GAME\USRDIR\EBOOT.ELF`; for test runs `scripts\run.ps1` (see `scripts/README.md`). On macOS `tools/run_mac.sh` mounts the disc image in `work/disc` and opens a window (the first time, `ASCENSION_ISO=<path to the .iso>`). Saves go to `gamedata/dev_hdd0`. |
+
+## Runtime switches
+
+Set before `main` by `host/ascension_defaults.cpp` (an environment value already set wins):
+
+| Switch | Why |
+| --- | --- |
+| `PS3_EDGE_ZLIB_HLE=1` | Edge Zlib inflates on the host; without it the archives never load. |
+| `RSX_LIVE_DRAW=1` | The live NV4097 draw engine; the default D3D12 path records none of this title's draws. |
+| `GCM_PARK_WAIT_MS=2000` | A parked FIFO waits for the SPU jobs to patch it. |
+| `GCM_SEMA_ACQUIRE=1` | A FIFO `SEMAPHORE_ACQUIRE` really waits (for the post-process tasks' label). |
+| `GCM_PARK_SPU_HOLD_MS=1000` | A patched park waits while SPURS tasks run (the first frame has no ACQUIRE). |
+| `GCM_REPORT_SPU_HOLD_MS=50` | A GET_REPORT waits while the post-process tasks are in a round, so RsxSync's next signal is not eaten. |
+| `SPURS_READY_LEVEL=1` | readyCount is a level, as the real kernel treats it. |
+| `LD_PERF_OVERLAY=1`, `PS3_VERBOSE=0` | The performance panel; per-frame log lines off. |
+
+Set by the launcher: `PS3_PARENT_HWND` (render inside its window), `PS3_WINDOW_SIZE`, `PS3_FULLSCREEN`, `PS3_WINDOW_ICON`, `PS3_ESC_QUITS`, `PS3_SYS_LANG`, `PS3_ENTER_BUTTON`, `PS3_MODS`; see `launcher/README.md`.
+
+## The game's own data
+
+- **Language archives:** `ENGLISH`, `FRENCH`, `GERMAN`, `GREEK`, `ITALIAN`, `POLISH`, `PORTUGUESE`, `RUSSIAN`, `SPANISH`, `TURKISH` (`.PSARC`, and `MP-` ones for multiplayer). The game picks one from the console language (`cellSysutilGetSystemParamInt`), and asks for Greek itself at the first start.
+- **System save** `BCES01741-SYSDATA/SAVEDATA` (4 KB, no checksum): a 16-byte header, then the options block the boot hands out (`func_0001A680`): `+0x0C` text language (`func_003963A8`), `+0x0D` voice language (`func_00396348`), `+0x0E`-`+0x16` volumes and screen settings, `+0x18` subtitles (`func_00032C74`). Written at the first start from the console language: English gives text 18 (English UK) and voices 1; Portuguese gives 7 and 7. The launcher writes these bytes (file offsets `0x1C`, `0x1D`, `0x28`) before each start, since the game no longer asks the console afterwards.
+- **Options in memory:** `0x842D18`; `+0x3D` (`0x842D55`) is the subtitle switch.
+- **Command line:** `-bootSelect`, `-subtitlesOn` and `-extraVRAM` set bytes `0x97D348`-`0x97D34A`; `-subtitlesOn` only changes the default the save then overrides. `PS3_ARGV` passes arguments.
 
 ## ps3recomp changes
 
-On the branch [`ascension-v0.15` of the fork `arnaldolima1/ps3recomp`](https://github.com/arnaldolima1/ps3recomp/tree/ascension-v0.15), twenty-five commits on ps3recomp v0.15.0, the checkout `../ps3recomp` should be on (also kept as `patches/`): `cellSpursInitializeWithAttribute2`, `cellSpursCreateTask2`, `_cellSpursTaskAttribute2Initialize`, `cellSpursCreateTaskset2`, `_cellSpursTasksetAttribute2Initialize`, `cellSpursAttributeEnableSystemWorkload`; `cellGamePatchCheck`; `_cellSpursLFQueuePushBody`; Edge Zlib on the host (with truncated output and the skip offset); the GCM offset tables written through to the guest; SPURS2's 32 workloads and flags1, ported onto v0.15.0's per-SPU scheduler; `GCM_PARK_WAIT_MS` (this title sets 2000 ms); the macOS window fix (the guest runs off the main thread, so AppKit can serve the window) and numbered Metal frame dumps; the SPURS kernel's tempArea filled at every selection; `SPURS_READY_LEVEL` (readyCount as a level, off by default; this title sets it); diagnostics (`SPURS_KICKLOG`, `SPURS_WLDUMP`, `SPU_PCWATCH`, `LWCOND_TRACE`, `SPU_LLAR0_TRAP`, `SPURS_PM_RUNLOG`, `SPU_EVLOG`, `SPU_JOBAPI_LOG`, `GCM_REPORTLOG`, `SPU_COMMIT_EA`, `GCM_SEMALOG`, `GCM_REPORTFF`, `SPU_MFCLOG_IMG`/`_EA`, `SPU_WAITSIG_EXITLOG`, `SPU_ITRACE_*`); a FIFO park keeping its own grace over the walker's stuck-get rule; the taskset bitsets updated under the lock-line lock (lost signals); a blocked semaphore ACQUIRE exempt from the stuck-get rule (this title sets `GCM_SEMA_ACQUIRE=1`); `GCM_FLIP_PACE_MS` (off); `GCM_PARK_SPU_HOLD_MS` (a patched park held while SPURS tasks run; this title sets 1000 ms) `[spurs-pm] poll` lines behind `SPURS_PM_TRACE`; `[null-read]` capped per reading function, with its registers; SPURS tasksets: one start per created task, `CellSpursTaskset2` at 0x2900 bytes with its two event flags, tasks an SPU creates in another taskset started; diagnostics `WATCHDOG_REGS`, `WATCHDOG_DUMP`, `WATCHDOG_UNWIND`, `SPU_MFCLOG_BYTES`; live draw: X16 textures, framebuffer sRGB and texture gamma (`LD_NO_SRGB=1` off), fragment `DDX`/`DDY`; `cellVdecQueryAttrEx`/`cellVdecOpenEx`, numbered timestamps for AUs without PTS and `CellVdecMpeg2Info`'s sequence fields; `cellSpursJoinTask2`; the performance panel (`LD_PERF_OVERLAY`); per-frame log lines behind `PS3_VERBOSE`; `lift_jobmods.py --extra-funcs-json`; diagnostics `LD_ZPROBE`, `LD_DEPTH_EQUAL_LEQUAL`, `HLE_BT_NID`, each distinct SPU interpreter entry logged with its start PC. Upstream fixed the `sys_lwcond_t` layout, files past 2 GB, `cellGcmMapEaIoAddressWithFlags`, the SPU microstep and interpreter hand-back, parked FIFOs and GET_REPORT into main memory on its own (#248, #256, #266, #268, #277, #312), so the rebase took its versions. Since then (patches 0023-0025): position-independent SPU lifts (`spu_lifter --pic`, `tools/lift_spu_pic.py`, `spu_overlay_register_pic`, eight `resident_code` slots), the interpreter rejoining lifted code as the dispatcher would (`SPU_PROBE`, default 1), SSE4.1 forms of the SPU float ops and `-msse4.1` for lifted SPU code, the vblank on the QPC clock at 59.94 Hz with one handler call per vblank, and diagnostics (`SPU_SMC_LSDUMP`, `SPU_MFCLOG_LSA`, `SPU_PIC_LOG`, `SPU_INTERP_HIST`, `SPU_NOLIFT`, `VDEC_TIMELOG`, `PS3_HLE_HIST`, `LV2_SYSCALL_HIST`, `t=` on `[atom-ea]`/`[ww]`/`[GET_REPORT]`). The older branch `ascension` (on v0.14.0) is kept as it was. The build regenerates the NID table whenever ps3recomp's library sources change (`CMakeLists.txt`).
+On the branch [`ascension-v0.15` of the fork `arnaldolima1/ps3recomp`](https://github.com/arnaldolima1/ps3recomp/tree/ascension-v0.15), thirty commits on ps3recomp v0.15.0, also kept here as `patches/` (0001-0030). Upstream fixed the `sys_lwcond_t` layout, files past 2 GB, `cellGcmMapEaIoAddressWithFlags`, the SPU microstep and interpreter hand-back, parked FIFOs and GET_REPORT into main memory on its own (#248, #256, #266, #268, #277, #312), so the rebase took its versions. The older branch `ascension` (on v0.14.0) is kept as it was. By area:
+
+- **SPURS:** the second generation (`cellSpursInitializeWithAttribute2`, `cellSpursCreateTaskset2`/`Task2`/`JoinTask2`, their attribute initializers, `cellSpursAttributeEnableSystemWorkload`); 32 workloads and flags1, ported onto v0.15.0's per-SPU scheduler; the kernel's tempArea filled at every selection; `SPURS_READY_LEVEL`; `_cellSpursLFQueuePushBody`; tasksets (one start per created task, `CellSpursTaskset2` at 0x2900 bytes with its two event flags, SPU-created tasks started); the taskset bitsets updated under the lock-line lock; the kernel woken by GPU reports (`spurs_external_event`, `SPURS_IDLE_BACKOFF_MAX`); task waits that re-check their signal every 2 ms (`SPU_WAITSIG_POLL_MS`).
+- **SPU code:** position-independent lifts (`spu_lifter --pic`, `tools/lift_spu_pic.py`, `spu_overlay_register_pic`, eight `resident_code` slots with LRU replacement); the interpreter rejoining lifted code (`SPU_PROBE`, a per-image function bitmap) and honouring the interrupt-enable bits of conditional `bi*`; SSE4.1 forms of the float, select, shift and compare ops and `-msse4.1` for lifted SPU code; `lift_jobmods.py --extra-funcs-json`; `SPU_SHADOW` (compares a lifted function with the interpreter, run by run).
+- **GCM and the FIFO:** the offset tables written through; `GCM_PARK_WAIT_MS` and a park's own grace over the stuck-get rule; a blocked `SEMAPHORE_ACQUIRE` exempt from it; `GCM_FLIP_PACE_MS` (off); `GCM_PARK_SPU_HOLD_MS` (parks recognised by address too); `GCM_REPORT_SPU_HOLD_MS` (QPC-timed, the walker kicked when the last task waits again); the vblank on the QPC clock at 59.94 Hz with one handler call per vblank.
+- **Video, audio and the window:** live draw's X16 textures, framebuffer sRGB and texture gamma, fragment `DDX`/`DDY`; `cellVdecQueryAttrEx`/`OpenEx`, numbered timestamps for AUs without PTS, `CellVdecMpeg2Info`'s sequence fields, AUs held (not refused) while the picture queue is full; the performance panel (`LD_PERF_OVERLAY`); the host window (`rsx_host_window.h`: embedding, size, full screen, icon, Escape); the macOS window fix and numbered Metal frame dumps.
+- **System:** Edge Zlib on the host (truncated output, the skip offset); `cellGamePatchCheck`; the console language and confirm button (`PS3_SYS_LANG`, `PS3_ENTER_BUTTON`); a mod overlay on USRDIR (`PS3_MODS`); the keyboard while a launcher window is in front; per-frame log lines behind `PS3_VERBOSE`.
+- **Diagnostics:** `SPURS_KICKLOG`, `SPURS_WLDUMP`, `SPURS_PM_RUNLOG`, `SPURS_PM_TRACE`, `SPU_PCWATCH`, `SPU_LLAR0_TRAP`, `SPU_EVLOG`, `SPU_JOBAPI_LOG`, `SPU_COMMIT_EA`, `SPU_MFCLOG_IMG`/`_EA`/`_BYTES`/`_LSA`, `SPU_WAITSIG_EXITLOG`, `SPU_WAITSIG_MISSLOG`, `SPU_ITRACE_*`, `SPU_SMC_LSDUMP`, `SPU_PIC_LOG`, `SPU_INTERP_HIST`, `SPU_NOLIFT`, `SPU_JOB_HIST`, `SPU_TASK_TIMELOG`, `SPU_IRQ_DELIVER`, `LWCOND_TRACE`, `GCM_REPORTLOG`, `GCM_SEMALOG`, `GCM_REPORTFF`, `GCM_HOLD_LOG`, `VDEC_TIMELOG`, `PS3_HLE_HIST`, `LV2_SYSCALL_HIST`, `WATCHDOG_REGS`/`_DUMP`/`_UNWIND`, `LD_ZPROBE`, `LD_DEPTH_EQUAL_LEQUAL`, `HLE_BT_NID`, `t=` stamps on `[atom-ea]`/`[ww]`/`[GET_REPORT]`; `[null-read]` capped per reading function, with its registers.
+
+The build regenerates the NID table whenever ps3recomp's library sources change (`CMakeLists.txt`).
 
 ## Debugging log
 
 What each step found, newest first. Addresses are the game's (EU 1.00).
 
+- **The launcher; language and subtitles in the system save** (2026-10-17, Windows). The game asks the console language only when it makes `BCES01741-SYSDATA`; later starts read their copy (`SAVEDATA` `0x1C`/`0x1D`), and the subtitle switch is `0x28`, handed to `func_00032C74` at boot (seen with `PPU_WWATCH=842D55`). The launcher writes them before each start. It also renders the game in its own window (`PS3_PARENT_HWND`); live draw presents into the null backend's window, so the host-window code lives in `rsx_host_window.h` for both backends. ps3recomp `3a0ca1e`, patch 0030.
 - **Cinematic at full speed, in sync; end-of-loading stall gone** (2026-10-17, Windows). A GET_REPORT waits while the post-process tasks are still in a round (`GCM_REPORT_SPU_HOLD_MS=50`): RsxSync turns each report into a signal, and with job module 214 lifted the next report arrived before the tasks began, so its signal was eaten and the game stopped every time. Then three causes of hitches: the hold timed with GetTickCount (15.6 ms steps), so it waited a frame; task waits that missed their wake and slept out a 1 s timeout (now re-checked every 2 ms, `[missed-wake]`); `cellVdecDecodeAu` returned BUSY on a full picture queue where the decoder holds the AU. Result: video 29.98 fps, loop ~35 Hz, longest frame 44 ms. ps3recomp `7744141`, patch 0029.
 - **Menus ~10 → 26-55 fps; why the cinematic lags its audio** (2026-10-17, Windows).
   - **Code fragments.** Module 209 does not copy code: each job's DMA list streams up to three code fragments from the EBOOT (`0x718E00`-`0x72A000`, packed back to back) into its input buffer (LS `0x11000`/`0x1D000`), at addresses that depend on the sizes before them. Lifted once each, position-independently: PC-derived addresses add `ctx->pic_delta`, set when dispatch enters the fragment's span. `tools/job_fragments.json`, images 300-333.
@@ -133,9 +164,3 @@ What each step found, newest first. Addresses are the game's (EU 1.00).
 - **PRX loading:** `sys_prx_load_module` and its variants; the game loads modules of its own at run time.
 - **Asynchronous file reads** (`cellFsAio*`) and **memory mapping** (`sys_mmapper_*`).
 - About 140 imports are network and online (`sceNp*`, `cellHttp`, `cellSsl`, `sys_net`, `cellVoice`, `cellNetCtl`): multiplayer, answered offline.
-
-ps3recomp: `master` at `0fe7dbf` (v0.15.0).
-
-## What to expect
-
-Of the ports built on ps3recomp, Twisted Metal (2012) is among the furthest: its menus and in-match HUD draw, its 3D world does not yet, held up by SPURS jobs and the Edge geometry ring. Ascension uses the same kind of SPU work, and more of it. It now reaches its menus; the game itself (the 3D world, combat, cinematics) is still ahead.
