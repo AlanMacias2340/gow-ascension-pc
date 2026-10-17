@@ -78,3 +78,12 @@ struct AscensionDefaults {
 } s_defaults;
 
 }  // namespace
+
+// Lifted SPU functions left to the interpreter unless SPU_NOLIFT says
+// otherwise (SPU_NOLIFT=none: all of them registered). Job module 214
+// (jobmod_e9f3f00d551e) runs 0x4418..0x447C with interrupts enabled; lifted,
+// it is interrupted at trampoline steps and the game stops at the end of
+// loading, interpreted it is never interrupted. Read by the runtime's
+// registration, which runs in static constructors, so it is a constant and
+// not an environment default.
+extern "C" const char* const spu_title_nolift = "214:4418";
