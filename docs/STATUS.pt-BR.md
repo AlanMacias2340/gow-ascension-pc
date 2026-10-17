@@ -4,7 +4,7 @@ Onde o experimento está, em 17/10/2026. Máquinas: Windows 11, AMD Ryzen 7 5700
 
 ## Onde estamos
 
-**No Windows o jogo inicia, mostra as telas de abertura, carrega, passa pelos primeiros menus e toca a cinemática de abertura com imagem e som**: a escolha de idioma, a tela de ajuste da imagem e a de brilho, desenhadas pelos próprios shaders do jogo, na fonte bronze dele; depois `OPENINGINT6.M2V` decodificado pelo FFmpeg. No primeiro uso ele grava o save do sistema (`BCES01741-SYSDATA`). A resposta ao controle ainda não foi testada, e o menu principal depois da cinemática ainda não foi visto (ela dura uns 4 minutos). Está lento: ~10 fps no trecho do carregamento e dos menus sem save, ~33-38 fps na cinemática; um painel no canto superior direito mostra FPS, tempo de quadro, velocidade, CPU e GPU. Não há release; para testar, compile a partir do código.
+**No Windows o jogo inicia, mostra as telas de abertura, carrega, passa pelos primeiros menus e toca a cinemática de abertura com imagem e som**: a escolha de idioma, a tela de ajuste da imagem e a de brilho, desenhadas pelos próprios shaders do jogo, na fonte bronze dele; depois `OPENINGINT6.M2V` decodificado pelo FFmpeg. No primeiro uso ele grava o save do sistema (`BCES01741-SYSDATA`). A resposta ao controle ainda não foi testada, e o menu principal depois da cinemática ainda não foi visto (ela dura uns 4 minutos). Ainda está lento: 26-55 fps nos menus sem save e 45-60 na cinemática (eram ~10 e ~33-38 na manhã de 17/10/2026), e o vídeo da cinemática anda a 75-85% da velocidade do áudio (veja os próximos passos); um painel no canto superior direito mostra FPS, tempo de quadro, velocidade, CPU e GPU. Não há release; para testar, compile a partir do código.
 
 No macOS as mesmas telas de abertura já eram desenhadas pelo Metal antes da nova tradução do código (abaixo); o build do Mac precisa da mesma retradução (com o lifter da v0.15 do ps3recomp) para chegar ao mesmo ponto.
 
@@ -21,6 +21,7 @@ No macOS as mesmas telas de abertura já eram desenhadas pelo Metal antes da nov
 | 16/10/2026 | Os menus ficam legíveis: atlas de fonte X16, sRGB no framebuffer e gamma de textura, `DDX`/`DDY` nos shaders, no motor live draw. |
 | 17/10/2026 | A "tela preta" depois dos menus era o cartão de fade do jogo esperando a cinemática: `cellVdecQueryAttrEx`/`cellVdecOpenEx` implementados, timestamps gerados para o MPEG-2 sem PTS, `frame_rate_code` no `CellVdecMpeg2Info`, FFmpeg em tempo de execução no Windows. A cinemática toca com imagem e som. |
 | 17/10/2026 | Desempenho: os 15 módulos de job Wws (que rodavam no interpretador de SPU) traduzidos e registrados por assinatura, menos log por quadro (`PS3_VERBOSE=0`), painel de desempenho (`LD_PERF_OVERLAY`). Menus sem save: 5-6 → ~10 fps. |
+| 17/10/2026 | Desempenho, parte dois: os fragmentos de código do módulo 209 traduzidos independentes de posição, mais 27 entradas nos módulos de job, SSE4.1 no código SPU traduzido e nas operações de ponto flutuante do SPU (patches 0023-0025). Menus sem save ~10 → 26-55 fps, cinemática ~35 → 45-60 fps. |
 
 ## O pipeline
 
@@ -40,8 +41,9 @@ No macOS as mesmas telas de abertura já eram desenhadas pelo Metal antes da nov
 
 ## Próximos passos
 
-1. **Desempenho nos menus e no carregamento (~10 fps).** O perfil (`PS3_DEBUG` + `prof`, nomes pelo `.map`) mostra o trabalhador de jobs SPU ainda ~60% no interpretador (`spu_step`, `spu_lookup`, `spu_pcwatch`). O que resta entra por código que o módulo 209 (`jobmod_7868e9b847d1`) copia para outra área da LS em tempo de execução (inícios `0x11090`/`0x1D090` e vizinhos, listados como `[spu-smc] microstep ... start=`). Caminhos: traduzir esse código na região para onde ele é copiado (`spu_overlay_register_region`), ou acelerar o próprio interpretador (`spu_pcwatch` e `spu_lookup` custam ~20% sozinhos).
-2. **A cinemática trava um pouco** mesmo a ~33 fps; medir com o painel depois do item 1.
+1. **Um frame mais curto.** O loop principal roda a ~24-33 Hz esperando a cadeia de cada frame (`tools/frame_timeline.py`: o último relatório da GPU sai ~13 ms depois do início do frame, as listas EDGE terminam ~25 ms depois); as threads SPU ficam quase ociosas. Candidatos: o trabalho de textura na CPU da thread do RSX (`decode_texel`, `nv3089_blit`) e a latência das listas EDGE.
+2. **O vídeo da cinemática fica para trás do áudio** (75-85%): o demultiplexador do player (`func_003C7338`, uma vez por iteração do loop principal) carrega um bloco de 64 KB do `OPENINGINT6.M2V` por iteração, e o stream precisa de ~2 MB/s; o vídeo só acompanha acima de ~33 iterações por segundo (o PS3 roda a 60). O item 1 resolve; nada no caminho do vídeo está errado.
+2b. **A entrada `0x4418` do módulo de job 214** trava o jogo no fim do carregamento quando é traduzida: fica entre um `bihz` que liga interrupções (`0x4414`) e um que desliga (`0x447C`), e o `biz`/`bihz` do interpretador ignora os bits E/D que o código traduzido aplica. Fica fora do `tools/jobmods_extra_funcs.json`; provavelmente a mesma raiz do item 5.
 3. **O menu principal depois da cinemática:** deixar a cinemática terminar (~4 min) ou pulá-la, e ver o que vem.
 4. **Controle:** confirmar que os menus respondem ao controle (os avisos esperam triângulo ou xis).
 5. **Travamento intermitente:** em cerca de metade das execuções o jogo para no fim do carregamento, com as tasks do pós-processo em `WAIT_SIGNAL`.
@@ -51,7 +53,7 @@ No macOS as mesmas telas de abertura já eram desenhadas pelo Metal antes da nov
 
 ## Mudanças no ps3recomp
 
-Ficam na branch [`ascension-v0.15` do fork `arnaldolima1/ps3recomp`](https://github.com/arnaldolima1/ps3recomp/tree/ascension-v0.15), 22 commits sobre o ps3recomp v0.15.0 (também guardados em `patches/`). Em resumo:
+Ficam na branch [`ascension-v0.15` do fork `arnaldolima1/ps3recomp`](https://github.com/arnaldolima1/ps3recomp/tree/ascension-v0.15), 25 commits sobre o ps3recomp v0.15.0 (também guardados em `patches/`). Em resumo:
 
 - **SPURS de segunda geração:** os pontos de entrada que o jogo chama (`cellSpursInitializeWithAttribute2`, `cellSpursCreateTask2`, `cellSpursCreateTaskset2` e afins), 32 workloads e flags1, o tempArea do kernel preenchido a cada seleção, `SPURS_READY_LEVEL`, a fila lock-free (`_cellSpursLFQueuePushBody`), os bitsets do taskset atualizados sob o lock da lock-line (sinais perdidos), uma única partida por task criada, `CellSpursTaskset2` com 0x2900 bytes e seus dois event flags, e tasks que uma SPU cria em outro taskset sendo iniciadas.
 - **GCM:** as tabelas de offset escritas na memória do jogo, `GET_REPORT` na memória principal, parks do FIFO com tolerância própria (`GCM_PARK_WAIT_MS`), `SEMAPHORE_ACQUIRE` que espera de fato (`GCM_SEMA_ACQUIRE`), um park liberado esperando as tasks SPU (`GCM_PARK_SPU_HOLD_MS`).
@@ -66,6 +68,8 @@ O upstream corrigiu por conta própria o layout do `sys_lwcond_t`, arquivos acim
 ## Diário de depuração (resumo)
 
 O que cada etapa encontrou, do mais recente para o mais antigo. Os endereços são os do jogo (EU 1.00); os detalhes completos estão no [STATUS.md](STATUS.md).
+
+- **Menus de ~10 para 26-55 fps; por que a cinemática atrasa em relação ao áudio.** O módulo 209 não copia código: a lista de DMA de cada job traz até três fragmentos de código do EBOOT para o buffer de entrada, em endereços que variam; agora traduzidos uma vez cada, independentes de posição. O interpretador só voltava ao código traduzido da própria imagem, então um job que caía nele uma vez rodava o resto interpretado; com o histograma (`SPU_INTERP_HIST`) entraram 27 entradas nos módulos de job (a 28ª, 214:`0x4418`, trava o jogo e foi achada por bisseção com `SPU_NOLIFT`). O código SPU traduzido era compilado sem SSE4.1: o `shufb` virava um laço byte a byte e cada operação de ponto flutuante quatro lanes escalares; as versões SSE4.1 são idênticas bit a bit às de referência e 4,8x mais rápidas. Na cinemática, o áudio roda em tempo real e o vídeo a 58-99%: o demultiplexador carrega um bloco de 64 KB por iteração do loop principal, e o stream precisa de ~2 MB/s.
 
 - **Os menus ficam legíveis.** O atlas da fonte é uma textura X16 (256×256) que o live draw não decodificava: cada letra saía como um bloco. O jogo calcula as cores em espaço linear e pede ao RSX a conversão sRGB (`SET_SHADER_PACKER`, 0x1FEC), que o live draw ignorava: tudo saía escuro. E a fonte é de distance field, cuja borda usa derivadas de tela (`DDX`/`DDY`), que o decompilador não implementava: letras inchadas, com os furos preenchidos.
 - **Passando da tela de carregamento.** A thread principal espera um job de partículas: o PPU cria cinco tasks SPU, cada uma pega um item com um add atômico, e a que vê a contagem final cria a fase seguinte a partir da própria SPU. Três falhas do runtime: tasks iniciadas em dobro (a contagem passava do total); o `CellSpursTaskset2` criado como um taskset comum (a biblioteca da SPU recusa criar tasks nele, erro `0x80410909`); e o escalonador que só olhava o taskset da task que terminava.
