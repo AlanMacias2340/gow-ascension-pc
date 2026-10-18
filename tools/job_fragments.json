@@ -168,5 +168,38 @@
   "ea": "0x729f40",
   "span": "0xc0",
   "seen": true
+ },
+ {
+  "ea": "0x6af1b0",
+  "span": "0x32e0",
+  "seen": true,
+  "entries": [
+   "0x6b1548",
+   "0x6b1588",
+   "0x6b1d50",
+   "0x6b2054",
+   "0x6b2080"
+  ]
+ },
+ {
+  "ea": "0x6d66b0",
+  "span": "0xb80",
+  "seen": true,
+  "entries": [
+   "0x6d6cf0",
+   "0x6d6f84",
+   "0x6d6fb0"
+  ]
+ },
+ {
+  "ea": "0x716730",
+  "span": "0x2450",
+  "seen": true,
+  "entries": [
+   "0x7181b8",
+   "0x7185d0",
+   "0x71882c",
+   "0x718858"
+  ]
  }
 ]
