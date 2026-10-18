@@ -14,8 +14,8 @@
 # -CaptureAt N : presses F12 in the game window at N s: one frame's draws,
 #                shaders and surfaces land in captures\cap_<frame>\.
 # -Menu        : save-backup, the launcher's composed mods (skip intro) and
-#                X presses that skip the opening cinematic; the menu is up in
-#                ~15 s. X stops before the menu (there it starts Single Player).
+#                one X press (14 s) that skips the opening cinematic; the menu is up in
+#                ~15 s. More presses enter the second menu (Single Player).
 # The log is build\logs\<Name>.log; tools\log_summary.py prints the summary,
 # and with -Profile the resolved profile is build\logs\<Name>-prof.txt.
 param(
@@ -44,7 +44,7 @@ $Log = Join-Path $Logs "$Name.log"
 if ($Menu) {
     if (-not $PSBoundParameters.ContainsKey("Save")) { $Save = "backup" }
     if ($Env -is [string]) { $Env = $Env + ";" } else { $Env = $Env.Clone() }
-    $menuEnv = @{ PAD_SCRIPT = "14:0x4000,15:0x0000,18:0x4000,19:0x0000,22:0x4000,23:0x0000" }
+    $menuEnv = @{ PAD_SCRIPT = "14:0x4000,15:0x0000" }
     $gen = Join-Path $env:APPDATA "ascension-launcher\generated"
     if (Test-Path $gen) { $menuEnv["PS3_MODS"] = $gen } else { Write-Host "no launcher mods at $($gen): the intro screens will play" }
     if ($Env -is [string]) { foreach ($k in $menuEnv.Keys) { $Env += "$k=$($menuEnv[$k]);" } }

@@ -315,6 +315,25 @@ else()
 endif()
 
 # ---------------------------------------------------------------------------
+# rrc_replay: draws an RPCS3 frame capture (.rrc) with the live-draw engine,
+# so a frame can be compared with RPCS3 on identical inputs. A dev tool, not
+# part of the game; it builds only when asked (ninja RrcReplay).
+# ---------------------------------------------------------------------------
+if(WIN32)
+    add_executable(RrcReplay EXCLUDE_FROM_ALL
+        "${PS3RECOMP_DIR}/libs/video/tests/rrc_replay_main.c"
+        "${PS3RECOMP_DIR}/runtime/host/host_stubs.c")
+    target_include_directories(RrcReplay PRIVATE
+        "${PS3RECOMP_DIR}/include"
+        "${PS3RECOMP_DIR}/runtime"
+        "${PS3RECOMP_DIR}/libs/video")
+    target_link_libraries(RrcReplay PRIVATE ps3recomp_runtime
+        dbghelp user32 gdi32 winmm dxguid d3d12 dxgi d3dcompiler)
+    target_compile_definitions(RrcReplay PRIVATE _CRT_SECURE_NO_WARNINGS)
+    set_target_properties(RrcReplay PROPERTIES LINKER_LANGUAGE CXX)
+endif()
+
+# ---------------------------------------------------------------------------
 # Install
 # ---------------------------------------------------------------------------
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
