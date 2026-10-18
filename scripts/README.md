@@ -15,7 +15,7 @@ Python tools used with them (`tools\`):
 
 - `log_summary.py <log>`: fps, the end-of-loading stall, the cinematic's speed (`VDEC_TIMELOG=1`), interpreted SPU code (`SPU_INTERP_HIST=1`), the HLE/syscall/poll histograms and error-like lines.
 - `frame_timeline.py <log>`: the per-frame chain (GPU report, RsxSync, MeshProc, EDGE, video picture) in time; see its docstring for the variables to set.
-- `compare_menu.py <dump dir> <out.png>`: the newest `LD_FRAME_DUMP` frame next to `captureseferenciaeferencia.png` (run it with `python -P`).
+- `compare_menu.py <dump dir> <out.png>`: the newest `LD_FRAME_DUMP` frame next to `captures\referencia\referencia.png` (run it with `python -P`).
 - `profile_threads.py --pid --dbg`: CPU per thread, then `prof` on the busiest through `PS3_DEBUG`, resolved with `maprva.py`.
 
 Examples:
