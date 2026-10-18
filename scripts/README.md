@@ -6,6 +6,7 @@ PowerShell helpers for the Windows build. Run them from anywhere; paths are take
 |---|---|
 | `build.ps1 [-Name x]` | `vcvars64` + `ninja -C build\win`, log in `build\logs\build[-x].log`; prints the time, the error lines and the last line. |
 | `run.ps1 [-Seconds 120] [-Save fresh\|backup\|keep] [-Name run] [-Env @{...}] [-Profile [-ProfileAt 45]]` | Runs the game with the window visible for a while, then kills it and prints `tools\log_summary.py`. `fresh` (default) moves the save aside so the first-use menus show; `backup` puts `work\save-backup` in place (straight to the cinematic). `-Profile` samples the busiest threads with `tools\profile_threads.py`. |
+| | `-Menu`: save-backup, the launcher's mods and X presses straight to the main menu. `-CaptureAt N`: F12 at N s (a frame's draws, shaders and surfaces in `captures\cap_<frame>\`). `-ProfileVerb profip`: the exclusive profile per instruction instead of per function. |
 | `launcher.ps1 [-Play]` | Opens the launcher (`launcherscension_launcher.py`): window, language, mods, music; `-Play` starts the game with the saved settings. |
 | `relift.ps1 jobmods [-Only <sha>]` | Re-lifts the SPU job modules with `tools\jobmods_extra_funcs.json`; `-Only` re-lifts one module and copies only its sources, so only it recompiles. |
 | `relift.ps1 fragments` | Lifts `tools\job_fragments.json` position-independently into `src\spu\pic_*`. |
@@ -14,6 +15,7 @@ Python tools used with them (`tools\`):
 
 - `log_summary.py <log>`: fps, the end-of-loading stall, the cinematic's speed (`VDEC_TIMELOG=1`), interpreted SPU code (`SPU_INTERP_HIST=1`), the HLE/syscall/poll histograms and error-like lines.
 - `frame_timeline.py <log>`: the per-frame chain (GPU report, RsxSync, MeshProc, EDGE, video picture) in time; see its docstring for the variables to set.
+- `compare_menu.py <dump dir> <out.png>`: the newest `LD_FRAME_DUMP` frame next to `captureseferenciaeferencia.png` (run it with `python -P`).
 - `profile_threads.py --pid --dbg`: CPU per thread, then `prof` on the busiest through `PS3_DEBUG`, resolved with `maprva.py`.
 
 Examples:

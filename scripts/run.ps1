@@ -5,11 +5,17 @@
 #   .\scripts\run.ps1 -Name cin -Env @{ VDEC_TIMELOG = "1"; PS3_HLE_HIST = "5" }
 #   .\scripts\run.ps1 -Profile -ProfileAt 45   # sample the busiest threads at 45 s
 #   .\scripts\run.ps1 -Seconds 0 -Save keep    # play: runs until you close the window
+#   .\scripts\run.ps1 -Menu -Seconds 60        # straight to the main menu (~15 s)
 #
 # -Save fresh  : move the current save aside (work\save-moved\<time>) so the
 #                first-use config menus show up (the default)
 # -Save backup : as fresh, then copy work\save-backup in (skips those menus)
 # -Save keep   : leave the save alone
+# -CaptureAt N : presses F12 in the game window at N s: one frame's draws,
+#                shaders and surfaces land in captures\cap_<frame>\.
+# -Menu        : save-backup, the launcher's composed mods (skip intro) and
+#                X presses that skip the opening cinematic; the menu is up in
+#                ~15 s. X stops before the menu (there it starts Single Player).
 # The log is build\logs\<Name>.log; tools\log_summary.py prints the summary,
 # and with -Profile the resolved profile is build\logs\<Name>-prof.txt.
 param(
@@ -19,7 +25,10 @@ param(
     $Env = @{},                         # hashtable, or "NAME=value;NAME2=value2"
     [switch]$Profile,
     [int]$ProfileAt = 45,
-    [int]$ProfileThreads = 4
+    [int]$ProfileThreads = 4,
+    [ValidateSet("prof", "profip")][string]$ProfileVerb = "prof",   # profip: exclusive time per instruction
+    [switch]$Menu,
+    [int]$CaptureAt = 0                 # press F12 (frame capture into captures\) at this second
 )
 
 $Root    = Split-Path -Parent $PSScriptRoot
@@ -32,6 +41,15 @@ $Slot    = Join-Path $SaveDir "BCES01741-SYSDATA"
 New-Item -ItemType Directory -Force $Logs, $SaveDir | Out-Null
 $Log = Join-Path $Logs "$Name.log"
 
+if ($Menu) {
+    if (-not $PSBoundParameters.ContainsKey("Save")) { $Save = "backup" }
+    if ($Env -is [string]) { $Env = $Env + ";" } else { $Env = $Env.Clone() }
+    $menuEnv = @{ PAD_SCRIPT = "14:0x4000,15:0x0000,18:0x4000,19:0x0000,22:0x4000,23:0x0000" }
+    $gen = Join-Path $env:APPDATA "ascension-launcher\generated"
+    if (Test-Path $gen) { $menuEnv["PS3_MODS"] = $gen } else { Write-Host "no launcher mods at $($gen): the intro screens will play" }
+    if ($Env -is [string]) { foreach ($k in $menuEnv.Keys) { $Env += "$k=$($menuEnv[$k]);" } }
+    else { foreach ($k in $menuEnv.Keys) { if (-not $Env.ContainsKey($k)) { $Env[$k] = $menuEnv[$k] } } }
+}
 if ($Save -ne "keep" -and (Test-Path $Slot)) {
     $dest = Join-Path $Work ("save-moved\" + (Get-Date -Format "yyyyMMdd-HHmmss"))
     New-Item -ItemType Directory -Force $dest | Out-Null
@@ -68,7 +86,22 @@ if ($Profile -and $game) {
     $wait = $ProfileAt - ((Get-Date) - $t0).TotalSeconds
     if ($wait -gt 0) { Start-Sleep -Seconds $wait }
     python -I (Join-Path $Root "tools\profile_threads.py") --pid $game.Id --dbg $dbg --threads $ProfileThreads `
-        --map (Join-Path $Root "build\win\AscensionRecomp.map") --out (Join-Path $Logs "$Name-prof.txt")
+        --verb $ProfileVerb --map (Join-Path $Root "build\win\AscensionRecomp.map") --out (Join-Path $Logs "$Name-prof.txt")
+}
+if ($CaptureAt -gt 0 -and $game) {
+    $wait = $CaptureAt - ((Get-Date) - $t0).TotalSeconds
+    if ($wait -gt 0) { Start-Sleep -Seconds $wait }
+    Add-Type -Namespace RunPs1 -Name Keys -MemberDefinition @"
+[DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, System.UIntPtr e);
+[DllImport("user32.dll")] public static extern bool SetForegroundWindow(System.IntPtr h);
+"@
+    $game.Refresh()
+    [RunPs1.Keys]::SetForegroundWindow($game.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 300
+    [RunPs1.Keys]::keybd_event(0x7B, 0, 0, [System.UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 150
+    [RunPs1.Keys]::keybd_event(0x7B, 0, 2, [System.UIntPtr]::Zero)
+    Write-Host "F12 sent at $([int]((Get-Date) - $t0).TotalSeconds) s"
 }
 if ($Seconds -le 0) {
     # -Seconds 0: play; wait until the game is closed, never kill it.

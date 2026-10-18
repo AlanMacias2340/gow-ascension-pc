@@ -42,6 +42,14 @@
 //                      RsxSync's round-2 job unrun until a later kick, which
 //                      never came (the render thread waits on frame slot
 //                      0x99AAC8 for it).
+//   SPURS_MAXCONT      up to five SPUs on the main menu's Wws job lists
+//                      (wid 3, 16 jobs a frame, and the EDGE lists, wid
+//                      15-17, one a frame), which the game gives one SPU
+//                      each. Recompiled SPU code runs them several times
+//                      slower than a real SPU, and one after the other they
+//                      held the menu at 14 fps; shared, it runs at ~33. The
+//                      Wws manager keeps a progress lane per SPU, so a list
+//                      is built to be shared.
 //   LD_PERF_OVERLAY    frame rate, frame time, speed, CPU and GPU use in the
 //                      top-right corner of the window.
 //   PS3_VERBOSE=0      the per-frame log lines (task creation and joins, SPU
@@ -82,8 +90,10 @@ struct AscensionDefaults {
         set_default("GCM_PARK_SPU_HOLD_MS", "1000");
         set_default("GCM_REPORT_SPU_HOLD_MS", "50");
         set_default("SPURS_READY_LEVEL", "1");
+        set_default("SPURS_MAXCONT", "3=5,15=5,16=5,17=5");
         set_default("LD_PERF_OVERLAY", "1");
-        set_default("PS3_VERBOSE", "0");    }
+        set_default("PS3_VERBOSE", "0");
+    }
 } s_defaults;
 
 }  // namespace

@@ -188,7 +188,9 @@ add_executable(${PROJECT_NAME}
 if(SPU_SOURCES)
     set_source_files_properties(${SPU_SOURCES} PROPERTIES
         INCLUDE_DIRECTORIES "${PS3RECOMP_DIR}/runtime/spu"
-        COMPILE_DEFINITIONS SPU_USE_DISPATCH_MT)
+        # SPU_ASSUME_SPU_FP: lifted code always runs in the SPU float mode
+        # (spu_run_with_halt), so the float ops skip reading MXCSR each time.
+        COMPILE_DEFINITIONS "SPU_USE_DISPATCH_MT;SPU_ASSUME_SPU_FP")
     if(NOT MSVC OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         # SSE4.1 as well (any x86-64 since ~2008): spu_shufb is pshufb/blendv
         # only under __SSE4_1__, and without it every shufb in lifted code is
@@ -204,8 +206,19 @@ if(SPU_SOURCES)
         else()
             set(SPU_ROUNDING_MATH "-frounding-math")
         endif()
+        # FMA3 (Haswell / Zen and later): spu_fma/fms/fnms are one vfmadd in the
+        # SPU float mode instead of the exact double path, and the menu's job
+        # list (16 jobs on one SPU per frame) is mostly matrix fma.
+        option(ASCENSION_SPU_FMA "Lifted SPU code uses FMA3 (needs a CPU with FMA)" ON)
+        check_c_compiler_flag(-mfma PORT_HAS_MFMA)
+        set(SPU_FMA_FLAG "")
+        if(ASCENSION_SPU_FMA AND PORT_HAS_MFMA)
+            # -ffp-contract=off: with FMA available clang would otherwise fuse
+            # every a*b+c in the helpers' scalar paths, which the SPU rounds twice.
+            set(SPU_FMA_FLAG ";-mfma;-ffp-contract=off")
+        endif()
         if(PORT_HAS_MSSE41)
-            set_source_files_properties(${SPU_SOURCES} PROPERTIES COMPILE_OPTIONS "-O2;-msse4.1;${SPU_ROUNDING_MATH}")
+            set_source_files_properties(${SPU_SOURCES} PROPERTIES COMPILE_OPTIONS "-O2;-msse4.1${SPU_FMA_FLAG};${SPU_ROUNDING_MATH}")
         else()
             set_source_files_properties(${SPU_SOURCES} PROPERTIES COMPILE_OPTIONS "-O2;${SPU_ROUNDING_MATH}")
         endif()

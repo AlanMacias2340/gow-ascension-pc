@@ -18,3 +18,6 @@ scratch/
 # Launcher artwork and music (not ours to publish) and installed mods.
 /launcher/assets/
 /mods/
+
+# Frame captures (F12 / run.ps1 -CaptureAt): frames of the game itself.
+/captures/

@@ -39,6 +39,7 @@ def main():
     ap.add_argument("--secs", type=int, default=3)
     ap.add_argument("--map", default=os.path.join(os.path.dirname(__file__), "..", "build", "win", "AscensionRecomp.map"))
     ap.add_argument("--out", default=None)
+    ap.add_argument("--verb", default="prof", help="prof (per function) or profip (exclusive per instruction)")
     a = ap.parse_args()
 
     before = thread_cpu(a.pid)
@@ -51,7 +52,7 @@ def main():
     start = os.path.getsize(out_raw) if os.path.exists(out_raw) else 0
     for _, tid in busy:
         with open(a.dbg, "w") as f:
-            f.write(f"prof {tid} {a.secs}\n")
+            f.write(f"{a.verb} {tid} {a.secs}\n")
         time.sleep(a.secs + 1.5)
     time.sleep(1)
     if not os.path.exists(out_raw):
