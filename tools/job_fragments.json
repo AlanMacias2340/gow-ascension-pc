@@ -86,7 +86,7 @@
  },
  {
   "ea": "0x722da0",
-  "span": "0xe60",
+  "span": "0x560",
   "seen": false
  },
  {
@@ -111,7 +111,7 @@
  },
  {
   "ea": "0x725490",
-  "span": "0xd60",
+  "span": "0x330",
   "seen": false
  },
  {
@@ -201,5 +201,30 @@
    "0x71882c",
    "0x718858"
   ]
+ },
+ {
+  "ea": "0x723300",
+  "span": "0x450",
+  "seen": false
+ },
+ {
+  "ea": "0x723750",
+  "span": "0x4b0",
+  "seen": false
+ },
+ {
+  "ea": "0x7257c0",
+  "span": "0x370",
+  "seen": false
+ },
+ {
+  "ea": "0x725b30",
+  "span": "0x370",
+  "seen": false
+ },
+ {
+  "ea": "0x725ea0",
+  "span": "0x350",
+  "seen": false
  }
 ]
