@@ -196,10 +196,18 @@ if(SPU_SOURCES)
         # The runtime gets the same flag; probed, as Apple arm64 clang rejects it.
         include(CheckCCompilerFlag)
         check_c_compiler_flag(-msse4.1 PORT_HAS_MSSE41)
-        if(PORT_HAS_MSSE41)
-            set_source_files_properties(${SPU_SOURCES} PROPERTIES COMPILE_OPTIONS "-O2;-msse4.1")
+        # The SPU float fast path (spu_helpers.h) runs with MXCSR rounding toward
+        # zero; -frounding-math keeps the compiler from folding float ops on
+        # constants under round-to-nearest. clang-cl takes it as /clang:.
+        if(MSVC)
+            set(SPU_ROUNDING_MATH "/clang:-frounding-math")
         else()
-            set_source_files_properties(${SPU_SOURCES} PROPERTIES COMPILE_OPTIONS "-O2")
+            set(SPU_ROUNDING_MATH "-frounding-math")
+        endif()
+        if(PORT_HAS_MSSE41)
+            set_source_files_properties(${SPU_SOURCES} PROPERTIES COMPILE_OPTIONS "-O2;-msse4.1;${SPU_ROUNDING_MATH}")
+        else()
+            set_source_files_properties(${SPU_SOURCES} PROPERTIES COMPILE_OPTIONS "-O2;${SPU_ROUNDING_MATH}")
         endif()
     endif()
 endif()
