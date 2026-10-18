@@ -123,7 +123,7 @@ def main(argv):
     check = Psarc(argv[2])
     for i in range(1, src.n):
         name = src.names[i - 1]
-        want = replace.get(name) or src.read(i)
+        want = replace[name] if name in replace else src.read(i)
         if check.read(i) != want:
             raise SystemExit(f'verify failed: {name}')
     print(f'{argv[2]}: {src.n - 1} files, {len(replace)} replaced, verified')

@@ -15,6 +15,8 @@ What the game could do, and when. The details behind each one are in [STATUS.md]
 | 2026-10-17 | Performance: the 15 Wws job modules lifted, a performance panel. First-use menus 5-6 → ~10 fps. |
 | 2026-10-17 | Performance, part two: position-independent lifts of streamed job code, SSE4.1 for lifted SPU code. Menus ~10 → 26-55 fps, cinematic ~35 → 45-60 fps. |
 | 2026-10-17 | RsxSync woken by GPU reports, SSE4.1 SPU ops, 381 job-module entries, the interpreter honouring interrupt enables. Cinematic video at 72-90% speed. |
-| 2026-10-17 | **The cinematic at full speed and in sync** (29.98 fps), the end-of-loading stall gone, every job module lifted (GPU reports wait for the post-process tasks, no lost task wakes, `cellVdec` holds AUs). |
+| 2026-10-17 | **The cinematic at full speed and in sync** (29.98 fps), the end-of-loading stall gone, module 214 lifted whole (GPU reports wait for the post-process tasks, no lost task wakes, `cellVdec` holds AUs). |
 | 2026-10-17 | The main menu renders (about 1 fps). |
 | 2026-10-17 | **A launcher:** video, language, subtitles and mods; the game renders inside its window. |
+| 2026-10-17 | **Main menu 1 -> 12 fps:** the 18 job modules the loading never streams lifted too (33 in all), streamed code found inside bigger GETs and by content. |
+| 2026-10-17 | Brazilian Portuguese (voices from the US disc, text already on the EU disc); mods as recipes, Skip intro included. |

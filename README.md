@@ -32,8 +32,9 @@ Em outubro de 2026, no Windows:
 
 - **Abertura e menus:** as telas de abertura, o carregamento e os menus de primeiro uso (idioma, ajuste de imagem, brilho), desenhados pelos shaders do próprio jogo, respondendo ao controle e ao teclado.
 - **Cinemática de abertura** com imagem e som sincronizados, na velocidade certa (30 fps).
-- **Menu principal:** já desenha o cenário, mas a cerca de 1 fps. É o próximo passo.
+- **Menu principal:** desenha o cenário a cerca de 12 fps (era 1); a imagem ainda tem defeitos. É o próximo passo.
 - **Launcher** com configurações de vídeo, idioma, legendas e mods; o jogo roda dentro da janela dele.
+- **Português do Brasil**, com vozes e textos, montado a partir do seu disco americano.
 
 Ainda não há release. O andamento detalhado está em [docs/STATUS.md](docs/STATUS.md) e os marcos em [docs/MILESTONES.md](docs/MILESTONES.md).
 
@@ -45,11 +46,15 @@ Com o jogo compilado (abaixo), abra o launcher:
 .\scripts\launcher.ps1
 ```
 
+<p align="center"><img src="docs/images/launcher-home.jpg" alt="O launcher do Ascension" width="760"></p>
+
 JOGAR abre o jogo dentro da própria janela do launcher.
 
 - **Vídeo:** janela ou tela cheia (F11 ou Alt+Enter também alternam durante o jogo), tamanho da janela, contador de FPS.
 - **Jogo:** idioma (inglês, português, espanhol, francês, alemão, italiano, russo, polonês, turco) e legendas, que valem mesmo depois do primeiro uso; botão de confirmar; backup automático dos saves.
-- **Mods:** pastas que substituem arquivos do jogo, em ordem de prioridade.
+- **Mods:** liga, desliga e ordena. Vem com **Pular intro** (direto ao carregamento, sem as telas de abertura); o botão **Criar mod PT-BR** monta o português do Brasil a partir da imagem do seu disco americano. Os mods incluídos são receitas: o launcher as aplica aos arquivos do seu disco, sem trazer nada do jogo.
+
+<p align="center"><img src="docs/images/launcher-mods.jpg" alt="A página de mods" width="760"></p>
 
 Controles no teclado: setas (direcional), Z/X/A/S (X, O, quadrado, triângulo), Q/W (L1/R1), 1/2 (L2/R2), Enter (START), Tab (SELECT). Um controle conectado tem prioridade.
 

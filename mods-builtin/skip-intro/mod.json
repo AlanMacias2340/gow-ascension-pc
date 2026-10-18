@@ -1,0 +1,9 @@
+{
+  "name": "Pular intro",
+  "description": "Vai direto ao carregamento, sem as telas de abertura (avisos e logos). Troca a lista de telas que o jogo lê (GAME.PSARC: /INTRO/BOOT_BCES01741.TXT) por uma vazia; nada do jogo vem com o mod.",
+  "psarc_patches": {
+    "GAME.PSARC": {
+      "/INTRO/BOOT_BCES01741.TXT": {"text": ""}
+    }
+  }
+}

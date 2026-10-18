@@ -32,8 +32,9 @@ As of October 2026, on Windows:
 
 - **Intro and menus:** the intro screens, the loading screen and the first-use menus (language, screen adjustment, brightness), drawn by the game's own shaders, answering the controller and the keyboard.
 - **The opening cinematic** with picture and sound in sync, at the right speed (30 fps).
-- **The main menu:** it draws its scene, but at about 1 fps. Next.
+- **The main menu:** it draws its scene at about 12 fps (it was 1); the picture still has faults. Next.
 - **A launcher** with video, language, subtitle and mod settings; the game runs inside its window.
+- **Brazilian Portuguese**, voices and text, built from your own US disc.
 
 No release yet. The detailed progress is in [STATUS.md](STATUS.md), the milestones in [MILESTONES.md](MILESTONES.md).
 
@@ -45,11 +46,15 @@ With the game built (below), open the launcher:
 .\scripts\launcher.ps1
 ```
 
+<p align="center"><img src="images/launcher-home.jpg" alt="The Ascension launcher" width="760"></p>
+
 PLAY starts the game inside the launcher's own window.
 
 - **Video:** window or full screen (F11 or Alt+Enter also toggle in game), window size, FPS counter.
 - **Game:** language (English, Portuguese, Spanish, French, German, Italian, Russian, Polish, Turkish) and subtitles, which hold after the first start too; confirm button; automatic save backups.
-- **Mods:** folders that replace game files, in priority order.
+- **Mods:** turn them on and off, and order them. **Skip intro** comes with it (straight to the loading screen, no intro screens); **Create PT-BR mod** builds Brazilian Portuguese from your US disc image. The included mods are recipes the launcher applies to your own disc's files; none carries anything from the game.
+
+<p align="center"><img src="images/launcher-mods.jpg" alt="The mods page" width="760"></p>
 
 Keyboard: arrows (d-pad), Z/X/A/S (cross, circle, square, triangle), Q/W (L1/R1), 1/2 (L2/R2), Enter (START), Tab (SELECT). A connected controller takes precedence.
 

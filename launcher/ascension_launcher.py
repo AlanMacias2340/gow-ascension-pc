@@ -104,38 +104,131 @@ def icon_file():
         return None
 
 
-def ptbr_mod(mods_dir, enabled):
+BUILTIN_MODS = ROOT / 'mods-builtin'
+GENERATED_DIR = CONFIG_DIR / 'generated'
+
+
+def read_mod_json(folder):
+    try:
+        data = json.loads((Path(folder) / 'mod.json').read_text(encoding='utf-8'))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def all_mods(s):
+    """Every mod the launcher knows, in priority order (first wins): the ones
+    that come with Ascension (mods-builtin, ids '@<folder>') and the user's
+    (the mods folder, ids = folder names). Each is a dict: id, path, name,
+    description, builtin, meta (its mod.json)."""
+    found = {}
+    if BUILTIN_MODS.is_dir():
+        for d in sorted(BUILTIN_MODS.iterdir()):
+            if d.is_dir():
+                found['@' + d.name] = (d, True)
+    user = Path(s['mods_dir'])
+    if user.is_dir():
+        for d in sorted(user.iterdir()):
+            if d.is_dir() and d.name not in found:
+                found[d.name] = (d, False)
+    order = [m for m in s.get('mods_order', []) if m in found]
+    order += [m for m in found if m not in order]
+    mods = []
+    for mid in order:
+        path, builtin = found[mid]
+        meta = read_mod_json(path)
+        mods.append({'id': mid, 'path': path, 'builtin': builtin, 'meta': meta,
+                     'name': meta.get('name') or path.name,
+                     'description': meta.get('description', '')})
+    return mods
+
+
+def enabled_mod_list(s):
+    on = set(s.get('mods_enabled', []))
+    return [m for m in all_mods(s) if m['id'] in on]
+
+
+def ptbr_mod(s):
     """An enabled mod that brings Brazilian Portuguese (tools/make_ptbr_mod.py
-    builds one from the US disc): BR_PORTUGUESE.PSARC, the US voices, beside a
-    GAME.PSARC whose language table lists "17 pt-br BR_PORTUGUESE"; the text,
-    R_LANG_PT-BR, is already on the European disc."""
-    folder = Path(mods_dir)
-    for name in enabled:
-        mod = folder / name
-        if (mod / 'BR_PORTUGUESE.PSARC').is_file() and (mod / 'GAME.PSARC').is_file():
-            return mod
+    builds one from the US disc): BR_PORTUGUESE.PSARC, the US voices, and the
+    language-table entry "17 pt-br BR_PORTUGUESE" (the text, R_LANG_PT-BR, is
+    already on the European disc)."""
+    for m in enabled_mod_list(s):
+        if (m['path'] / 'BR_PORTUGUESE.PSARC').is_file() or str(m['meta'].get('language', '')).lower() == 'pt-br':
+            return m
     return None
 
 
-def language_options(mods_dir, enabled):
+def language_options(s):
     """Brazilian Portuguese is offered only with a mod that brings it."""
-    if ptbr_mod(mods_dir, enabled):
+    if ptbr_mod(s):
         return LANGUAGES
     return [o for o in LANGUAGES if o[0] != '17']
 
 
 def effective_language(s):
     lang = s['language']
-    if lang == '17' and not ptbr_mod(s['mods_dir'], s['mods_enabled']):
+    if lang == '17' and not ptbr_mod(s):
         return '7'
     return lang
 
 
-def enabled_mods(s):
-    """The enabled mod folders, highest priority first."""
-    folder = Path(s['mods_dir'])
-    order = [m for m in s['mods_order'] if (folder / m).is_dir()]
-    return [str(folder / m) for m in order if m in s['mods_enabled']]
+def apply_text_ops(data, ops):
+    """One archive file changed by a mod: {"text": "..."} replaces it,
+    {"insert_after": "<line>", "line": "<new line>"} adds a line (once)."""
+    for op in ops:
+        if 'text' in op:
+            data = op['text'].encode('utf-8')
+        elif 'insert_after' in op and 'line' in op:
+            eol = b'\r\n' if b'\r\n' in data else b'\n'
+            anchor, line = op['insert_after'].encode('utf-8'), op['line'].encode('utf-8')
+            lines = data.split(eol)
+            if line not in lines and anchor in lines:
+                i = lines.index(anchor)
+                lines.insert(i + 1, line)
+                data = eol.join(lines)
+    return data
+
+
+def compose_mods(s, log=lambda m: None):
+    """The folders for PS3_MODS: first the archives the launcher builds from
+    the enabled mods' recipes ("psarc_patches" in mod.json, applied to the
+    copy of that archive the highest-priority mod ships, or to the disc's),
+    then every enabled mod's own files. Rebuilt only when an input changes."""
+    mods = enabled_mod_list(s)
+    usrdir = Path(s['eboot']).parent
+    wanted = {}
+    for m in mods:
+        for archive, files in (m['meta'].get('psarc_patches') or {}).items():
+            wanted.setdefault(archive, [])
+    dirs = []
+    if wanted:
+        GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('psarc_replace', ROOT / 'tools' / 'psarc_replace.py')
+        pr = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(pr)
+        for archive in wanted:
+            base = next((m['path'] / archive for m in mods if (m['path'] / archive).is_file()), usrdir / archive)
+            # lowest priority first, so the first mod in the list has the last word
+            ops = {}
+            for m in reversed(mods):
+                for inner, op in ((m['meta'].get('psarc_patches') or {}).get(archive) or {}).items():
+                    ops.setdefault(inner, []).append(op if isinstance(op, dict) else {'text': str(op)})
+            st = base.stat()
+            key = json.dumps([str(base), st.st_size, int(st.st_mtime), ops], sort_keys=True)
+            out = GENERATED_DIR / archive
+            keyf = GENERATED_DIR / (archive + '.key')
+            if not (out.is_file() and keyf.is_file() and keyf.read_text(encoding='utf-8') == key):
+                log(f'montando {archive}')
+                src = pr.Psarc(str(base))
+                replace = {inner: apply_text_ops(src.read(src.index_of(inner)), oplist)
+                           for inner, oplist in ops.items() if inner in src.names}
+                pr.write(src, str(out), replace)
+                keyf.write_text(key, encoding='utf-8')
+        dirs.append(str(GENERATED_DIR))
+    dirs += [str(m['path']) for m in mods]
+    return dirs
 
 
 def game_environment(s):
@@ -146,7 +239,7 @@ def game_environment(s):
     env['PS3_FULLSCREEN'] = '1' if s['display_mode'] == 'fullscreen' else '0'
     env['PS3_ESC_QUITS'] = s['esc_quits']
     env['LD_PERF_OVERLAY'] = s['perf_overlay']
-    mods = enabled_mods(s)
+    mods = compose_mods(s)
     if mods:
         env['PS3_MODS'] = ';'.join(mods)
     else:
@@ -278,6 +371,8 @@ class Launcher:
         self.s = load_settings()
         self.vars = {}
         self.dynamic = {}
+        self.mod_vars = {}
+        self.mod_order = list(self.s['mods_order'])
         self.process = None
         self.heading = 'Cinzel Black' if register_font(HERE / 'Cinzel-Black.ttf') else 'Georgia'
         self.ui = 'Segoe UI' if WINDOWS else 'DejaVu Sans'
@@ -372,13 +467,6 @@ class Launcher:
             if self.var(key).get() not in box.maps[0]:
                 self.var(key).set(fallback)
             shown.set(box.maps[0].get(self.var(key).get(), options[0][1]))
-
-    def languages(self):
-        enabled = [m for m, v in getattr(self, 'mod_vars', {}).items() if v.get()] if getattr(self, 'mod_vars', None)             else self.s['mods_enabled']
-        return language_options(self.var('mods_dir').get(), enabled)
-
-    def mods_changed(self):
-        self.refresh_choices('language', '7')
 
     def page(self, name, title, subtitle):
         tk, ttk = self.tk, self.ttk
@@ -648,15 +736,16 @@ class Launcher:
         self.row(f, '', holder)
 
     def build_mods(self):
-        f = self.page('mods', 'Mods', 'Pastas que substituem arquivos do jogo.')
-        self.section(f, 'Pasta de mods')
-        self.path_row(f, 'mods_dir', 'Pasta', folder=True)
-        self.note(f, 'Cada mod é uma subpasta que espelha o USRDIR do jogo: um mod que troca GAME.PSARC tem '
-                     '<mod>/GAME.PSARC. O primeiro da lista vence quando dois mods trazem o mesmo arquivo.')
+        f = self.page('mods', 'Mods', 'Ligue, desligue e ordene. O primeiro da lista vence quando dois mexem no mesmo arquivo.')
+        self.section(f, 'Mods')
+        self.mods_frame = self.tk.Frame(f, bg=PANEL)
+        self.mods_frame.grid(row=f.next_row, column=0, columnspan=3, sticky='we')
+        self.mods_frame.columnconfigure(0, weight=1)
+        f.next_row += 1
         self.section(f, 'Português do Brasil')
         self.note(f, 'O disco europeu já traz os textos em português do Brasil; as vozes vêm do disco americano. '
                      'Escolha a imagem (.iso) do seu disco americano, ou a pasta extraída dele, e o launcher monta o '
-                     'mod PT-BR aqui. Com ele ligado, Português (Brasil) aparece em Idioma.')
+                     'mod PT-BR na sua pasta de mods. Com ele ligado, Português (Brasil) aparece em Idioma.')
         holder = self.ttk.Frame(f)
         self.ttk.Button(holder, text='Criar mod PT-BR do disco americano (.iso)…',
                         command=lambda: self.make_ptbr(folder=False)).pack(side='left')
@@ -664,43 +753,89 @@ class Launcher:
             side='left', padx=(8, 0))
         holder.grid(row=f.next_row, column=0, columnspan=3, sticky='w', pady=(8, 0))
         f.next_row += 1
-        self.section(f, 'Mods instalados')
-        self.mods_frame = self.ttk.Frame(f)
-        self.mods_frame.grid(row=f.next_row, column=0, columnspan=3, sticky='we')
-        f.next_row += 1
+        self.section(f, 'Pasta de mods')
+        self.path_row(f, 'mods_dir', 'Pasta', folder=True)
+        self.note(f, 'Cada mod é uma subpasta que espelha o USRDIR do jogo (um mod que troca GAME.PSARC traz '
+                     '<mod>/GAME.PSARC), ou um mod.json com uma receita que o launcher aplica aos arquivos do seu '
+                     'disco ao jogar. Os mods incluídos vêm com o Ascension e não trazem nada do jogo.')
         holder = self.ttk.Frame(f)
         self.ttk.Button(holder, text='Atualizar lista', command=self.refresh_mods).pack(side='left')
-        self.ttk.Button(holder, text='Abrir pasta', command=lambda: self.open_path(Path(self.var('mods_dir').get()), make=True)).pack(
-            side='left', padx=(8, 0))
+        self.ttk.Button(holder, text='Abrir pasta',
+                        command=lambda: self.open_path(Path(self.var('mods_dir').get()), make=True)).pack(side='left', padx=(8, 0))
         holder.grid(row=f.next_row, column=0, columnspan=3, sticky='w', pady=(10, 0))
         f.next_row += 1
         self.var('mods_dir').trace_add('write', lambda *_: self.refresh_mods())
         self.mod_order = list(self.s['mods_order'])
         self.mod_vars = {}
+        self.refresh_mods()
+
+    def current_mod_settings(self):
+        enabled = [m for m, v in self.mod_vars.items() if v.get()] if self.mod_vars else list(self.s['mods_enabled'])
+        return {**self.s, 'mods_dir': self.var('mods_dir').get(), 'mods_enabled': enabled,
+                'mods_order': list(getattr(self, 'mod_order', self.s['mods_order']))}
+
+    def switch(self, parent, var, command):
+        """An on/off switch: a pill that is red-gold when on."""
+        tk = self.tk
+        c = tk.Canvas(parent, width=46, height=24, bg=CARD, highlightthickness=0, bd=0, cursor='hand2')
+
+        def draw(*_):
+            c.delete('all')
+            on = var.get()
+            fill = ACCENT_HI if on else '#3a302a'
+            c.create_oval(2, 2, 22, 22, fill=fill, outline=fill)
+            c.create_oval(24, 2, 44, 22, fill=fill, outline=fill)
+            c.create_rectangle(12, 2, 34, 22, fill=fill, outline=fill)
+            x = 26 if on else 4
+            c.create_oval(x, 4, x + 16, 20, fill='#fbf1e2' if on else '#8a7f76', outline='')
+
+        def toggle(_e=None):
+            var.set(not var.get())
+            draw()
+            command()
+        c.bind('<Button-1>', toggle)
+        var.trace_add('write', draw)
+        draw()
+        return c
 
     def refresh_mods(self):
+        tk, ttk = self.tk, self.ttk
         for w in self.mods_frame.winfo_children():
             w.destroy()
-        folder = Path(self.var('mods_dir').get())
-        found = sorted(p.name for p in folder.iterdir() if p.is_dir()) if folder.is_dir() else []
-        self.mod_order = [m for m in self.mod_order if m in found] + [m for m in found if m not in self.mod_order]
-        if not found:
-            self.ttk.Label(self.mods_frame, text='Nenhum mod nesta pasta.', style='Muted.TLabel').grid(row=0, column=0, sticky='w')
-            self.mod_vars = {}
-            self.mods_changed()
-            return
-        enabled = set(self.s['mods_enabled']) | {m for m, v in self.mod_vars.items() if v.get()}
-        enabled -= {m for m, v in self.mod_vars.items() if not v.get()}
-        for i, name in enumerate(self.mod_order):
-            v = self.mod_vars.get(name) or self.tk.BooleanVar(value=name in enabled)
-            self.mod_vars[name] = v
-            self.ttk.Label(self.mods_frame, text=f'{i + 1}.', style='Muted.TLabel').grid(row=i, column=0, sticky='w', padx=(0, 8))
-            self.ttk.Checkbutton(self.mods_frame, text=name, variable=v, command=self.mods_changed).grid(
-                row=i, column=1, sticky='w', pady=2)
-            self.ttk.Button(self.mods_frame, text='▲', width=3, command=lambda n=name: self.move_mod(n, -1)).grid(
-                row=i, column=2, padx=(16, 2))
-            self.ttk.Button(self.mods_frame, text='▼', width=3, command=lambda n=name: self.move_mod(n, 1)).grid(row=i, column=3)
+        s = self.current_mod_settings()
+        mods = all_mods({**s, 'mods_order': self.mod_order})
+        self.mod_order = [m['id'] for m in mods]
+        enabled = set(s['mods_enabled'])
+        if not mods:
+            ttk.Label(self.mods_frame, text='Nenhum mod.', style='Muted.TLabel').grid(row=0, column=0, sticky='w')
+        for i, m in enumerate(mods):
+            v = self.mod_vars.get(m['id']) or tk.BooleanVar(value=m['id'] in enabled)
+            self.mod_vars[m['id']] = v
+            card = tk.Frame(self.mods_frame, bg=CARD, highlightthickness=1, highlightbackground=LINE)
+            card.grid(row=i, column=0, sticky='we', pady=4)
+            card.columnconfigure(1, weight=1)
+            self.switch(card, v, self.mods_changed).grid(row=0, column=0, rowspan=2, padx=(14, 14), pady=12)
+            head = tk.Frame(card, bg=CARD)
+            head.grid(row=0, column=1, sticky='w', pady=(10, 0))
+            tk.Label(head, text=m['name'], bg=CARD, fg=TEXT, font=(self.heading, 11)).pack(side='left')
+            if m['builtin']:
+                tk.Label(head, text=' INCLUÍDO ', bg='#3a2a14', fg=GOLD, font=(self.ui, 7, 'bold')).pack(side='left', padx=(10, 0))
+            tk.Label(card, text=m['description'] or str(m['path']), bg=CARD, fg=MUTED, font=(self.ui, 9),
+                     wraplength=620, justify='left').grid(row=1, column=1, sticky='w', pady=(2, 10))
+            arrows = tk.Frame(card, bg=CARD)
+            arrows.grid(row=0, column=2, rowspan=2, padx=12)
+            for txt, step in (('▲', -1), ('▼', 1)):
+                b = tk.Label(arrows, text=txt, bg=CARD, fg=MUTED if (step < 0 and i == 0) or (step > 0 and i == len(mods) - 1) else TEXT,
+                             font=(self.ui, 10), cursor='hand2', padx=6)
+                b.pack(side='top')
+                b.bind('<Button-1>', lambda _e, mid=m['id'], st=step: self.move_mod(mid, st))
         self.mods_changed()
+
+    def languages(self):
+        return language_options(self.current_mod_settings())
+
+    def mods_changed(self):
+        self.refresh_choices('language', '7')
 
     def make_ptbr(self, folder):
         if folder:
@@ -970,8 +1105,12 @@ def main():
         def grab(i):
             from PIL import ImageGrab
             root.update()
-            x, y = root.winfo_rootx(), root.winfo_rooty()
-            ImageGrab.grab((x, y, x + root.winfo_width(), y + root.winfo_height())).save(out / f'{pages[i]}.png')
+            try:     # the window itself, whatever is on top of it
+                img = ImageGrab.grab(window=int(root.wm_frame(), 16))
+            except (TypeError, ValueError, OSError):
+                x, y = root.winfo_rootx(), root.winfo_rooty()
+                img = ImageGrab.grab((x, y, x + root.winfo_width(), y + root.winfo_height()))
+            img.save(out / f'{pages[i]}.png')
             if i + 1 < len(pages):
                 app.show(pages[i + 1])
                 root.after(600, grab, i + 1)

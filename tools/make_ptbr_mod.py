@@ -6,11 +6,12 @@ The European disc (BCES-01741) already carries the Brazilian text
 (RESOURCES.PSARC: R_LANG_PT-BR.WAD); it only lacks the voices and the entry in
 its language table. The mod adds them, leaving European Portuguese as it is:
 
-  GAME.PSARC              the EU one, LANGS_BCES01741.TXT with "17 pt-br BR_PORTUGUESE"
+  mod.json                a recipe: GAME.PSARC's LANGS_BCES01741.TXT gets "17 pt-br
+                          BR_PORTUGUESE" (the launcher applies it to your disc's copy)
   BR_PORTUGUESE.PSARC     \\ from the US disc (BCUS-98232), as they are
   MP-BR_PORTUGUESE.PSARC  /
   LOCALIZED_ARCHIVES      the EU list with the two archives above
-  mod.json                {"language": "pt-BR"}: the launcher offers Português (Brasil)
+                          and {"language": "pt-BR"}: the launcher offers Português (Brasil)
 
 The game then loads them for console language 17 (PS3_SYS_LANG=17, or bytes
 0x1C/0x1D = 17 in its system save, which the launcher writes).
@@ -50,20 +51,15 @@ def build(us, eu, out, log=print):
         raise SystemExit(f'missing the EU GAME.PSARC in {eu}')
     out.mkdir(parents=True, exist_ok=True)
 
-    log('GAME.PSARC: adding Brazilian Portuguese to the language table')
-    game = psarc_replace.Psarc(str(eu / 'GAME.PSARC'))
-    langs = game.read(game.index_of(LANGS))
-    eol = b'\r\n' if b'\r\n' in langs else b'\n'
-    if b'pt-br' not in langs:
-        anchor = b'16 pl POLISH' + eol
-        if anchor not in langs:
-            raise SystemExit('unexpected LANGS_BCES01741.TXT')
-        langs = langs.replace(anchor, anchor + b'17 pt-br BR_PORTUGUESE' + eol)
-    with tempfile.NamedTemporaryFile(delete=False) as t:
-        t.write(langs)
-    psarc_replace.main(['', str(eu / 'GAME.PSARC'), str(out / 'GAME.PSARC'), f'{LANGS}={t.name}'])
-    Path(t.name).unlink()
-
+    # The language table is changed by recipe (mod.json, psarc_patches): the
+    # launcher applies it to the disc's GAME.PSARC together with any other
+    # mod that touches that archive. An older build of this mod shipped a
+    # whole GAME.PSARC; it would override the others.
+    stale = out / 'GAME.PSARC'
+    if stale.exists():
+        stale.chmod(0o666)
+        stale.unlink()
+    eol = b'\r\n' if b'\r\n' in (eu / 'LOCALIZED_ARCHIVES').read_bytes() else b'\n'
     lines = (eu / 'LOCALIZED_ARCHIVES').read_bytes().split(eol)
     body = []
     for line in lines[1:]:
@@ -88,6 +84,8 @@ def build(us, eu, out, log=print):
         'language': 'pt-BR',
         'description': 'Vozes e textos em português do Brasil: as vozes do disco americano e o texto que o '
                        'disco europeu já traz, com a entrada na tabela de idiomas do jogo.',
+        'psarc_patches': {'GAME.PSARC': {LANGS: {'insert_after': '16 pl POLISH',
+                                                  'line': '17 pt-br BR_PORTUGUESE'}}},
     }, ensure_ascii=False, indent=2), encoding='utf-8')
     log(f'done: {out}')
 

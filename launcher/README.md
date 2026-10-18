@@ -16,6 +16,15 @@ Pages: Home (cross-fading artwork, quick settings), Video, Game, Mods, Advanced.
 | Mods | `PS3_MODS` (enabled folders, first wins; each mirrors `USRDIR`) |
 | Icon | `PS3_WINDOW_ICON` (`icon-2.png` as an `.ico`) |
 
+Mods come from two places, listed together in one priority order (first wins): `mods-builtin/` in this repository (shown as included) and the user's mods folder. A mod is a folder that mirrors `USRDIR` (its files replace the disc's), and/or a `mod.json`:
+
+```json
+{"name": "Pular intro", "description": "...",
+ "psarc_patches": {"GAME.PSARC": {"/INTRO/BOOT_BCES01741.TXT": {"text": ""}}}}
+```
+
+`psarc_patches` are recipes for files inside an archive: `{"text": ...}` replaces one, `{"insert_after": <line>, "line": <new line>}` adds a line. At PLAY the launcher builds each patched archive once from the disc's copy (or from the copy the highest-priority mod ships) into `%APPDATA%\ascension-launcher\generated\`, applying every enabled mod's recipes, lowest priority first, and puts that folder first in `PS3_MODS`. Included: **Skip intro** (an empty boot-screen list).
+
 Brazilian Portuguese needs the PT-BR mod, which the Mods page builds from your own US disc (an `.iso` or its extracted folder) with `tools/make_ptbr_mod.py`; with it on, the language list offers Português (Brasil).
 
 Saves are copied to `gamedata\save-backups\` before each start (the last ten are kept). The run's output goes to `build\logs\last_run.log`.
