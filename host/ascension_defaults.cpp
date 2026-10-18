@@ -50,6 +50,16 @@
 //                      held the menu at 14 fps; shared, it runs at ~33. The
 //                      Wws manager keeps a progress lane per SPU, so a list
 //                      is built to be shared.
+//   SPU_REJOIN         the interpreter rejoins job module 204's lifted code
+//                      (jobmod_31107645db58, the level-load job) between LS
+//                      0x9700 and 0x1C000, which it otherwise only does with
+//                      interrupts off. Run interpreted (~95M instructions per
+//                      5 s) it held the main loop at ~55 ms an iteration: the
+//                      loading movies played at 50-75% with stuttering audio.
+//   SPU_REJOIN_CALL    that rejoined code runs in a drain of the interpreter's
+//                      own, so its host return resumes interpretation at the
+//                      right pc instead of unwinding past the interpreted
+//                      caller.
 //   LD_PERF_OVERLAY    frame rate, frame time, speed, CPU and GPU use in the
 //                      top-right corner of the window.
 //   PS3_VERBOSE=0      the per-frame log lines (task creation and joins, SPU
@@ -91,6 +101,8 @@ struct AscensionDefaults {
         set_default("GCM_REPORT_SPU_HOLD_MS", "50");
         set_default("SPURS_READY_LEVEL", "1");
         set_default("SPURS_MAXCONT", "3=5,15=5,16=5,17=5");
+        set_default("SPU_REJOIN", "204:9700-1C000");
+        set_default("SPU_REJOIN_CALL", "1");
         set_default("LD_PERF_OVERLAY", "1");
         set_default("PS3_VERBOSE", "0");
     }
