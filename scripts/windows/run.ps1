@@ -6,6 +6,7 @@
 #   .\scripts\windows\run.ps1 -Profile -ProfileAt 45   # sample the busiest threads at 45 s
 #   .\scripts\windows\run.ps1 -Seconds 0 -Save keep    # play: runs until you close the window
 #   .\scripts\windows\run.ps1 -Menu -Seconds 60        # straight to the main menu (~15 s)
+#   .\scripts\windows\run.ps1 -Level -Rpcs3 -Seconds 150  # into the first level (~100 s), on RPCS3's RSX
 #
 # -Save fresh  : move the current save aside (work\save-moved\<time>) so the
 #                first-use config menus show up (the default)
@@ -16,6 +17,9 @@
 # -Menu        : save-backup, the launcher's composed mods (skip intro) and
 #                one X press (14 s) that skips the opening cinematic; the menu is up in
 #                ~15 s. More presses enter the second menu (Single Player).
+# -Level       : as -Menu, with the presses that start the game: the first level
+#                (Kratos chained) is up in ~100 s.
+# -Rpcs3       : PS3_RSX=rpcs3 (RPCS3's RSX draws; the build needs RPCS3_RSX=1).
 # The log is build\logs\<Name>.log; tools\log_summary.py prints the summary,
 # and with -Profile the resolved profile is build\logs\<Name>-prof.txt.
 param(
@@ -28,6 +32,8 @@ param(
     [int]$ProfileThreads = 4,
     [ValidateSet("prof", "profip")][string]$ProfileVerb = "prof",   # profip: exclusive time per instruction
     [switch]$Menu,
+    [switch]$Level,
+    [switch]$Rpcs3,
     [int]$CaptureAt = 0                 # press F12 (frame capture into captures\) at this second
 )
 
@@ -41,10 +47,14 @@ $Slot    = Join-Path $SaveDir "BCES01741-SYSDATA"
 New-Item -ItemType Directory -Force $Logs, $SaveDir | Out-Null
 $Log = Join-Path $Logs "$Name.log"
 
+if ($Level) { $Menu = $true }
 if ($Menu) {
     if (-not $PSBoundParameters.ContainsKey("Save")) { $Save = "backup" }
     if ($Env -is [string]) { $Env = $Env + ";" } else { $Env = $Env.Clone() }
-    $menuEnv = @{ PAD_SCRIPT = "14:0x4000,15:0x0000" }
+    $pad = if ($Level) { "14:0x4000,15:0x0000,24:0x4000,25:0x0000,27:0x4000,28:0x0000,30:0x4000,31:0x0000,33:0x4000,34:0x0000" }
+           else { "14:0x4000,15:0x0000" }
+    $menuEnv = @{ PAD_SCRIPT = $pad }
+    if ($Rpcs3) { $menuEnv["PS3_RSX"] = "rpcs3" }
     $gen = Join-Path $env:APPDATA "ascension-launcher\generated"
     if (Test-Path $gen) { $menuEnv["PS3_MODS"] = $gen } else { Write-Host "no launcher mods at $($gen): the intro screens will play" }
     if ($Env -is [string]) { foreach ($k in $menuEnv.Keys) { $Env += "$k=$($menuEnv[$k]);" } }
