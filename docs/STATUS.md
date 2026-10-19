@@ -73,7 +73,7 @@ Set before `main` by `host/ascension_defaults.cpp` (an environment value already
 | `SPU_REJOIN=204:9700-1C000`, `SPU_REJOIN_CALL=1` | Job module 204 (the level-load job) runs lifted, not interpreted: the loading movies play at full speed with smooth audio. The level loads without them too, at 50-75% speed. |
 | `LD_PERF_OVERLAY=1`, `PS3_VERBOSE=0` | The performance panel; per-frame log lines off. |
 
-Set by the launcher: `PS3_PARENT_HWND` (render inside its window), `PS3_WINDOW_SIZE`, `PS3_FULLSCREEN`, `PS3_WINDOW_ICON`, `PS3_ESC_QUITS`, `PS3_SYS_LANG`, `PS3_ENTER_BUTTON`, `PS3_MODS`; see `launcher/README.md`.
+Set by the launcher: `PS3_PARENT_HWND` (render inside its window), `PS3_WINDOW_SIZE`, `PS3_FULLSCREEN`, `PS3_WINDOW_ICON`, `PS3_ESC_QUITS`, `PS3_SYS_LANG`, `PS3_ENTER_BUTTON`, `PS3_MODS`, the renderer and video switches (`PS3_RSX`, `PS3_RSX_RENDERER`, `PS3_RENDER_SCALE`, `PS3_ASPECT`, `PS3_SCALE_FILTER`, `PS3_VSYNC`, `PS3_ANISO`) and the controls (`PS3_KEYMAP`, `PS3_PADMAP`, `PS3_PAD_DEADZONE`); see `launcher/README.md`.
 
 ## The game's own data
 

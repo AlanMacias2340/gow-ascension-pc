@@ -2,19 +2,28 @@
 
 `ascension_launcher.py` (Python 3 with Tk, and Pillow) sets up the game and starts it. Open it with `scripts\launcher.ps1`, or `python launcher\ascension_launcher.py`; `--play` starts the game with the saved settings and no window.
 
-Pages: Home (cross-fading artwork, quick settings), Video, Game, Mods, Advanced. Settings are kept in `%APPDATA%\ascension-launcher\settings.json` and reach the game as ps3recomp environment switches:
+On macOS: `brew install python@3.12 python-tk@3.12`, a venv with `pip install pillow`, then `python launcher/ascension_launcher.py`. The game opens a window of its own (the launcher hides until it closes), the disc `.iso` set in Advanced is mounted read-only at `work/disc` when needed, the executable is `build/AscensionRecomp` and the `EBOOT.ELF` is read from `input/`. Music plays through `afplay`.
+
+Pages: Home (cross-fading artwork, quick settings), Video, Controls, Game, Mods, Advanced. Settings are kept in `%APPDATA%\ascension-launcher\settings.json` (macOS: `~/Library/Application Support/ascension-launcher/settings.json`) and reach the game as ps3recomp environment switches:
 
 | Setting | Switch |
 |---|---|
-| Display mode, window size | `PS3_FULLSCREEN`, `PS3_WINDOW_SIZE` (F11 or Alt+Enter toggles in game) |
+| Renderer | `PS3_RSX=rpcs3` and `PS3_RSX_RENDERER=vulkan`/`opengl` (RPCS3's RSX, a build with `-DASCENSION_RPCS3_RSX=ON`), or neither (live draw); macOS: Metal |
+| Internal resolution, anisotropic filter | `PS3_RENDER_SCALE` (percent), `PS3_ANISO` (RPCS3 only) |
+| Display mode, window size | `PS3_FULLSCREEN`, `PS3_WINDOW_SIZE` (F11 or Alt+Enter toggles in game; macOS F11 or Ctrl+Cmd+F) |
+| Aspect ratio, image scaling | `PS3_ASPECT=keep`/`stretch`, `PS3_SCALE_FILTER=linear`/`nearest`/`fsr` (RPCS3 and Metal) |
+| VSync | `PS3_VSYNC=1`/`0`, unset for each renderer's own (Metal and live draw on, RPCS3 off) |
+| Keyboard and mouse | `PS3_KEYMAP` (`cross=Space,K;square=J,Mouse1;...`, two keys per control) |
+| Controller | `PS3_PADMAP` (`cross=a;circle=b;...`), `PS3_PAD_DEADZONE` (percent) |
+| Disc folder | `PS3_VFS_ROOT` (when set; on macOS `work/disc`) |
 | Language | `PS3_SYS_LANG` (the console language, read when the game makes its system save), and bytes `0x1C` (text) / `0x1D` (voices) of `BCES01741-SYSDATA/SAVEDATA` afterwards |
 | Subtitles | byte `0x28` of the same file (the game's `-subtitlesOn` drives the same switch) |
 | Confirm button | `PS3_ENTER_BUTTON` |
 | Esc closes the game | `PS3_ESC_QUITS` |
-| FPS counter | `LD_PERF_OVERLAY` |
+| FPS counter | `LD_PERF_OVERLAY` (macOS: `PS3RECOMP_METAL_FPS`, in the window's title) |
 | Embedded | `PS3_PARENT_HWND` (the game renders inside the launcher's window) |
 | Mods | `PS3_MODS` (enabled folders, first wins; each mirrors `USRDIR`) |
-| Icon | `PS3_WINDOW_ICON` (`icon-2.png` as an `.ico`) |
+| Icon | `PS3_WINDOW_ICON` (`icon-2.png` as an `.ico`; the `.png` on macOS) |
 
 Mods come from two places, listed together in one priority order (first wins): `mods-builtin/` in this repository (shown as included) and the user's mods folder. A mod is a folder that mirrors `USRDIR` (its files replace the disc's), and/or a `mod.json`:
 
@@ -30,3 +39,7 @@ Brazilian Portuguese needs the PT-BR mod, which the Mods page builds from your o
 Saves are copied to `gamedata\save-backups\` before each start (the last ten are kept). The run's output goes to `build\logs\last_run.log`.
 
 The artwork and music are not in the repository. The launcher reads `background*.jpg/png`, `logo.png`, `icon-2.png` and `music.mp3` from `launcher\assets\` or `..\work\data\launcher\`; without them it still works, plainer. `Cinzel-Black.ttf` is the Cinzel typeface (SIL Open Font License, `OFL-Cinzel.txt`).
+
+## Controls
+
+The Controls page has two tabs. **Keyboard and mouse:** every PS3 control (both sticks' four directions, the buttons, the shoulders and triggers, L3/R3, the d-pad, START and SELECT) takes two keys or mouse buttons; click one and press the new key or button (Esc cancels, × clears it), and a key taken from another control leaves that one. Two presets: **Default (WASD)** (WASD walks, the arrows evade, Space/J/I/L or the mouse for the face buttons, Shift blocks, Esc or Enter pauses) and **Classic (arrows)** (the runtime's old fixed map: arrows, Z/X/A/S, Q/W, 1/2). **Controller:** which controller button acts as each PS3 button, and the sticks' dead zone. Keyboard, mouse and controller all work at once, on the first pad.

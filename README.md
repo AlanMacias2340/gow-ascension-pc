@@ -50,13 +50,12 @@ Com o jogo compilado (abaixo), abra o launcher:
 
 JOGAR abre o jogo dentro da própria janela do launcher.
 
-- **Vídeo:** janela ou tela cheia (F11 ou Alt+Enter também alternam durante o jogo), tamanho da janela, contador de FPS.
-- **Jogo:** idioma (inglês, português, espanhol, francês, alemão, italiano, russo, polonês, turco) e legendas, que valem mesmo depois do primeiro uso; botão de confirmar; backup automático dos saves.
+- **Vídeo:** renderizador (RPCS3 Vulkan ou OpenGL, live draw; Metal no Mac), resolução interna e filtro anisotrópico (RPCS3), janela ou tela cheia (F11 ou Alt+Enter também alternam durante o jogo), tamanho da janela, proporção, escala da imagem, sincronização vertical, contador de FPS.
+- **Controles:** abas para teclado e mouse (duas teclas por comando, clique e aperte a nova) e para o controle (qual botão faz cada um, zona morta). Padrão: WASD anda, setas esquivam, Espaço/J/I/L ou o mouse nos botões, Shift defende, Esc ou Enter pausa. Teclado, mouse e controle funcionam juntos.
+- **Jogo:** idioma (inglês, português, espanhol, francês, alemão, italiano, russo, polonês, turco) e legendas, que valem mesmo depois do primeiro uso; backup automático dos saves.
 - **Mods:** liga, desliga e ordena. Vem com **Pular intro** (direto ao carregamento, sem as telas de abertura); o botão **Criar mod PT-BR** monta o português do Brasil a partir da imagem do seu disco americano. Os mods incluídos são receitas: o launcher as aplica aos arquivos do seu disco, sem trazer nada do jogo.
 
 <p align="center"><img src="docs/images/launcher-mods.jpg" alt="A página de mods" width="760"></p>
-
-Controles no teclado: setas (direcional), Z/X/A/S (X, O, quadrado, triângulo), Q/W (L1/R1), 1/2 (L2/R2), Enter (START), Tab (SELECT). Um controle conectado tem prioridade.
 
 ## Compilando
 

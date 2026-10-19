@@ -1,9 +1,11 @@
 """God of War: Ascension (PC) launcher.
 
-Settings for the recompiled game (window, language, mods, ...), kept in
-%APPDATA%\\ascension-launcher\\settings.json and handed to the game as the
+Settings for the recompiled game (window, video, controls, language, mods,
+...), kept in %APPDATA%\\ascension-launcher\\settings.json (macOS:
+~/Library/Application Support/ascension-launcher) and handed to the game as the
 environment switches ps3recomp reads. PLAY starts build/win/AscensionRecomp.exe
-with the disc's EBOOT.ELF; `--play` does the same without the window.
+(macOS: build/AscensionRecomp) with the disc's EBOOT.ELF; `--play` does the
+same without the window.
 
 Artwork (backgrounds, logo, icon, music) is not part of the repository: it is
 read from launcher/assets/ or, failing that, ../work/data/launcher/.
@@ -12,6 +14,7 @@ import ctypes
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -22,13 +25,19 @@ from pathlib import Path
 VERSION = '0.1'
 APP_NAME = 'God of War: Ascension'
 WINDOWS = sys.platform == 'win32'
+MAC = sys.platform == 'darwin'
 SHOT = '--shot' in sys.argv     # development: screenshot each page, then quit (no music)
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent                                   # ascension/
 WORK = ROOT.parent / 'work'
 ASSET_DIRS = [HERE / 'assets', WORK / 'data' / 'launcher']
-CONFIG_DIR = Path(os.environ.get('APPDATA', Path.home())) / 'ascension-launcher'
+if WINDOWS:
+    CONFIG_DIR = Path(os.environ.get('APPDATA', Path.home())) / 'ascension-launcher'
+elif MAC:
+    CONFIG_DIR = Path.home() / 'Library' / 'Application Support' / 'ascension-launcher'
+else:
+    CONFIG_DIR = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'ascension-launcher'
 CONFIG_FILE = CONFIG_DIR / 'settings.json'
 BACKGROUNDS = ['background.jpg', 'background-2.jpg', 'background-3.jpg', 'background-4.png']
 
@@ -45,12 +54,106 @@ WINDOW_SIZES = [(s, s.replace('x', ' x ')) for s in
 ENTER_BUTTONS = [('cross', 'X confirma (Ocidente)'), ('circle', 'O confirma (Japão)')]
 ON_OFF = [('1', 'Ligado'), ('0', 'Desligado')]
 
+# Video. The renderer: RPCS3's RSX (ps3recomp gpu/, a build with
+# -DASCENSION_RPCS3_RSX=ON) or live draw on Windows; Metal on macOS.
+RENDERERS = ([('rpcs3-vulkan', 'RPCS3 · Vulkan'), ('rpcs3-opengl', 'RPCS3 · OpenGL'),
+              ('livedraw', 'Live draw · Direct3D 12')] if WINDOWS else [('metal', 'Metal')])
+RENDER_SCALES = [('100', '100% · 1280 x 720 (original)'), ('150', '150% · 1920 x 1080'),
+                 ('200', '200% · 2560 x 1440'), ('300', '300% · 3840 x 2160')]
+ASPECTS = [('keep', 'Manter 16:9 (barras pretas)'), ('stretch', 'Esticar para a janela')]
+SCALE_FILTERS = [('linear', 'Suave (bilinear)'), ('nearest', 'Nítido (pixel)')] + \
+    ([('fsr', 'AMD FSR 1 (RPCS3)')] if WINDOWS else [])
+VSYNC_MODES = [('auto', 'Automático (o do renderizador)'), ('1', 'Ligado'), ('0', 'Desligado')]
+ANISO_LEVELS = [('0', 'O do jogo'), ('2', '2x'), ('4', '4x'), ('8', '8x'), ('16', '16x')]
+
+# Controls: the PS3 pad's controls, grouped as the Controles page shows them,
+# with what they do in the game where that is certain. The ids are
+# ps3recomp's (PS3_KEYMAP / PS3_PADMAP, libs/input/pad_keymap.h).
+CONTROL_GROUPS = [
+    ('Analógico esquerdo · andar', [('ls_up', 'Cima'), ('ls_down', 'Baixo'), ('ls_left', 'Esquerda'),
+                                     ('ls_right', 'Direita')]),
+    ('Analógico direito · esquiva', [('rs_up', 'Cima'), ('rs_down', 'Baixo'), ('rs_left', 'Esquerda'),
+                                      ('rs_right', 'Direita')]),
+    ('Botões', [('cross', '✕  Pular'), ('square', '□  Ataque leve'), ('triangle', '△  Ataque forte'),
+                ('circle', '○  Agarrar')]),
+    ('Ombros e gatilhos', [('l1', 'L1  Defender'), ('r1', 'R1'), ('l2', 'L2'), ('r2', 'R2'),
+                           ('l3', 'L3 (clique do analógico)'), ('r3', 'R3 (clique do analógico)')]),
+    ('Direcional', [('up', '↑  Cima'), ('down', '↓  Baixo'), ('left', '←  Esquerda'), ('right', '→  Direita')]),
+    ('Sistema', [('start', 'START  Pausa'), ('select', 'SELECT')]),
+]
+PAD_CONTROLS = [c for _, items in CONTROL_GROUPS for c, _ in items if not c.startswith(('ls_', 'rs_'))]
+
+KEY_PRESETS = {
+    'pc': {   # WASD to walk, arrows to evade, the face buttons under the right hand and the mouse
+        'ls_up': ['W'], 'ls_down': ['S'], 'ls_left': ['A'], 'ls_right': ['D'],
+        'rs_up': ['Up'], 'rs_down': ['Down'], 'rs_left': ['Left'], 'rs_right': ['Right'],
+        'cross': ['Space', 'K'], 'square': ['J', 'Mouse1'], 'triangle': ['I', 'Mouse2'], 'circle': ['L', 'C'],
+        'l1': ['LShift', 'Q'], 'r1': ['E', 'Mouse4'], 'l2': ['Z'], 'r2': ['R', 'Mouse5'],
+        'l3': ['LCtrl'], 'r3': ['V'],
+        'up': ['T'], 'down': ['G'], 'left': ['F'], 'right': ['H'],
+        'start': ['Enter', 'Escape'], 'select': ['Tab', 'Backspace'],
+    },
+    'classic': {   # the runtime's old fixed map: arrows, Z/X/A/S
+        'up': ['Up'], 'down': ['Down'], 'left': ['Left'], 'right': ['Right'],
+        'ls_up': ['Up'], 'ls_down': ['Down'], 'ls_left': ['Left'], 'ls_right': ['Right'],
+        'cross': ['Z'], 'circle': ['X'], 'square': ['A'], 'triangle': ['S'],
+        'l1': ['Q'], 'r1': ['W'], 'l2': ['1'], 'r2': ['2'], 'start': ['Enter'], 'select': ['Tab'],
+    },
+}
+PAD_DEFAULTS = {'up': 'up', 'down': 'down', 'left': 'left', 'right': 'right', 'cross': 'a', 'circle': 'b',
+                'square': 'x', 'triangle': 'y', 'l1': 'lb', 'r1': 'rb', 'l2': 'lt', 'r2': 'rt',
+                'l3': 'ls', 'r3': 'rs', 'start': 'start', 'select': 'back'}
+PAD_BUTTONS = [('a', 'A  ·  ✕'), ('b', 'B  ·  ○'), ('x', 'X  ·  □'), ('y', 'Y  ·  △'),
+               ('lb', 'LB  ·  L1'), ('rb', 'RB  ·  R1'), ('lt', 'LT  ·  L2'), ('rt', 'RT  ·  R2'),
+               ('ls', 'Clique esquerdo  ·  L3'), ('rs', 'Clique direito  ·  R3'),
+               ('back', 'View / Back  ·  Share'), ('start', 'Menu / Start  ·  Options'),
+               ('guide', 'Xbox / PS'), ('up', 'Direcional ↑'), ('down', 'Direcional ↓'),
+               ('left', 'Direcional ←'), ('right', 'Direcional →'), ('none', '(nenhum)')]
+DEADZONES = [(str(v), f'{v}%' + (' (padrão)' if v == 24 else '')) for v in (0, 5, 10, 15, 20, 24, 30, 40, 50)]
+
+# Key names as ps3recomp reads them, from Tk's keysyms.
+TK_KEYS = {
+    'space': 'Space', 'Return': 'Enter', 'KP_Enter': 'Enter', 'Tab': 'Tab', 'ISO_Left_Tab': 'Tab',
+    'BackSpace': 'Backspace', 'Escape': 'Escape', 'Up': 'Up', 'Down': 'Down', 'Left': 'Left', 'Right': 'Right',
+    'Shift_L': 'LShift', 'Shift_R': 'RShift', 'Control_L': 'LCtrl', 'Control_R': 'RCtrl',
+    'Alt_L': 'LAlt', 'Alt_R': 'RAlt', 'Option_L': 'LAlt', 'Option_R': 'RAlt',
+    'comma': 'Comma', 'period': 'Period', 'slash': 'Slash', 'semicolon': 'Semicolon',
+    'apostrophe': 'Quote', 'quoteright': 'Quote', 'bracketleft': 'LBracket', 'bracketright': 'RBracket',
+    'minus': 'Minus', 'equal': 'Equals', 'grave': 'Grave', 'quoteleft': 'Grave', 'backslash': 'Backslash',
+    'Insert': 'Insert', 'Delete': 'Delete', 'Home': 'Home', 'End': 'End', 'Prior': 'PageUp',
+    'Next': 'PageDown', 'Caps_Lock': 'CapsLock',
+    **{f'KP_{i}': f'Num{i}' for i in range(10)}, **{f'F{i}': f'F{i}' for i in range(1, 13)},
+}
+KEY_LABELS = {
+    'Space': 'Espaço', 'Escape': 'Esc', 'Up': '↑', 'Down': '↓', 'Left': '←', 'Right': '→',
+    'LShift': 'Shift esq.', 'RShift': 'Shift dir.', 'LCtrl': 'Control esq.', 'RCtrl': 'Control dir.',
+    'LAlt': 'Option esq.' if MAC else 'Alt esq.', 'RAlt': 'Option dir.' if MAC else 'Alt dir.',
+    'Comma': ',', 'Period': '.', 'Slash': '/', 'Semicolon': ';', 'Quote': "'", 'LBracket': '[',
+    'RBracket': ']', 'Minus': '-', 'Equals': '=', 'Grave': '`', 'Backslash': '\\',
+    'PageUp': 'Page Up', 'PageDown': 'Page Down', 'CapsLock': 'Caps Lock',
+    'Mouse1': '🖱 Esquerdo', 'Mouse2': '🖱 Direito', 'Mouse3': '🖱 Meio', 'Mouse4': '🖱 Botão 4',
+    'Mouse5': '🖱 Botão 5', **{f'Num{i}': f'Num {i}' for i in range(10)},
+}
+
+
+def key_label(name):
+    return KEY_LABELS.get(name, name) if name else '—'
+
+
+GAME_EXE = ROOT / 'build' / 'win' / 'AscensionRecomp.exe' if WINDOWS else ROOT / 'build' / 'AscensionRecomp'
+# On macOS the disc stays an .iso, mounted read-only at work/disc when the game
+# starts; the decrypted EBOOT.ELF sits in ascension/input/.
+EBOOT = (WORK / 'disc' / 'PS3_GAME' / 'USRDIR' / 'EBOOT.ELF') if WINDOWS else ROOT / 'input' / 'EBOOT.ELF'
+
 DEFAULTS = {
     'display_mode': 'window', 'window_size': '1280x720', 'perf_overlay': '1',
+    'renderer': RENDERERS[0][0], 'render_scale': '100', 'aspect': 'keep', 'scale_filter': 'linear',
+    'vsync': 'auto', 'aniso': '0',
     'esc_quits': '0', 'language': '18', 'enter_button': 'cross', 'subtitles': '1',
+    'keymap': KEY_PRESETS['pc'], 'padmap': PAD_DEFAULTS, 'pad_deadzone': '24',
     'mods_dir': str(ROOT / 'mods'), 'mods_enabled': [], 'mods_order': [],
-    'game_exe': str(ROOT / 'build' / 'win' / 'AscensionRecomp.exe'),
-    'eboot': str(WORK / 'disc' / 'PS3_GAME' / 'USRDIR' / 'EBOOT.ELF'),
+    'game_exe': str(GAME_EXE), 'eboot': str(EBOOT),
+    'disc_dir': '' if WINDOWS else str(WORK / 'disc'), 'disc_iso': '',
     'backup_saves': '1', 'music': '1', 'extra_env': '',
 }
 
@@ -73,7 +176,14 @@ def load_settings():
         data = json.loads(CONFIG_FILE.read_text(encoding='utf-8'))
     except (OSError, ValueError):
         data = {}
-    return {**DEFAULTS, **data}
+    s = {**DEFAULTS, **data}
+    keymap = s['keymap'] if isinstance(s['keymap'], dict) else {}
+    s['keymap'] = {c: [k for k in keymap.get(c, [])][:2] for _, items in CONTROL_GROUPS for c, _ in items}
+    padmap = s['padmap'] if isinstance(s['padmap'], dict) else {}
+    s['padmap'] = {c: padmap.get(c, PAD_DEFAULTS[c]) for c in PAD_CONTROLS}
+    if s['renderer'] not in dict(RENDERERS):
+        s['renderer'] = RENDERERS[0][0]
+    return s
 
 
 def save_settings(values):
@@ -88,10 +198,11 @@ def save_dir():
 
 
 def icon_file():
-    """icon-2.png as an .ico (window, taskbar and the game's window)."""
+    """icon-2.png as an .ico (window, taskbar and the game's window); on
+    macOS the .png itself (the game's Dock icon)."""
     src = asset('icon-2.png')
-    if not src:
-        return None
+    if not src or not WINDOWS:
+        return src
     ico = CONFIG_DIR / 'icon.ico'
     try:
         if not ico.is_file() or ico.stat().st_mtime < src.stat().st_mtime:
@@ -190,13 +301,39 @@ def apply_text_ops(data, ops):
     return data
 
 
+def disc_root(s):
+    """The disc's folder (the one holding PS3_GAME) when one is set, else None:
+    on Windows the EBOOT.ELF's own disc decides."""
+    d = s.get('disc_dir', '')
+    return Path(d) if d else None
+
+
+def disc_usrdir(s):
+    root = disc_root(s)
+    return root / 'PS3_GAME' / 'USRDIR' if root else Path(s['eboot']).parent
+
+
+def ensure_disc(s):
+    """macOS: mount the .iso read-only at the disc folder if it is not there yet."""
+    root = disc_root(s)
+    if not root or (root / 'PS3_GAME').is_dir():
+        return
+    iso = s.get('disc_iso', '')
+    if MAC and iso and Path(iso).is_file():
+        root.mkdir(parents=True, exist_ok=True)
+        r = subprocess.run(['hdiutil', 'attach', '-readonly', '-nobrowse', '-mountpoint', str(root), iso],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            raise OSError('hdiutil: ' + (r.stderr or r.stdout).strip())
+
+
 def compose_mods(s, log=lambda m: None):
     """The folders for PS3_MODS: first the archives the launcher builds from
     the enabled mods' recipes ("psarc_patches" in mod.json, applied to the
     copy of that archive the highest-priority mod ships, or to the disc's),
     then every enabled mod's own files. Rebuilt only when an input changes."""
     mods = enabled_mod_list(s)
-    usrdir = Path(s['eboot']).parent
+    usrdir = disc_usrdir(s)
     wanted = {}
     for m in mods:
         for archive, files in (m['meta'].get('psarc_patches') or {}).items():
@@ -231,6 +368,15 @@ def compose_mods(s, log=lambda m: None):
     return dirs
 
 
+def keymap_env(keymap):
+    """PS3_KEYMAP: "cross=Space,K;square=J,Mouse1;..." (libs/input/pad_keymap.h)."""
+    return ';'.join(f'{c}=' + ','.join(keys) for c, keys in keymap.items() if keys)
+
+
+def padmap_env(padmap):
+    return ';'.join(f'{c}={b}' for c, b in padmap.items())
+
+
 def game_environment(s):
     env = dict(os.environ)
     env['PS3_SYS_LANG'] = effective_language(s)
@@ -239,6 +385,29 @@ def game_environment(s):
     env['PS3_FULLSCREEN'] = '1' if s['display_mode'] == 'fullscreen' else '0'
     env['PS3_ESC_QUITS'] = s['esc_quits']
     env['LD_PERF_OVERLAY'] = s['perf_overlay']
+    if MAC:
+        env['PS3RECOMP_METAL_FPS'] = s['perf_overlay']    # in the window's title
+    # Video
+    env.pop('PS3_RSX', None)
+    env.pop('PS3_RSX_RENDERER', None)
+    if s['renderer'].startswith('rpcs3'):
+        env['PS3_RSX'] = 'rpcs3'
+        env['PS3_RSX_RENDERER'] = 'opengl' if s['renderer'] == 'rpcs3-opengl' else 'vulkan'
+    env['PS3_RENDER_SCALE'] = s['render_scale']
+    env['PS3_ASPECT'] = s['aspect']
+    env['PS3_SCALE_FILTER'] = s['scale_filter']
+    env['PS3_ANISO'] = s['aniso']
+    if s['vsync'] in ('0', '1'):
+        env['PS3_VSYNC'] = s['vsync']
+    else:
+        env.pop('PS3_VSYNC', None)
+    # Controls
+    env['PS3_KEYMAP'] = keymap_env(s['keymap']) or 'start=Enter'
+    env['PS3_PADMAP'] = padmap_env(s['padmap'])
+    env['PS3_PAD_DEADZONE'] = s['pad_deadzone']
+    root = disc_root(s)
+    if root:
+        env['PS3_VFS_ROOT'] = str(root)
     mods = compose_mods(s)
     if mods:
         env['PS3_MODS'] = ';'.join(mods)
@@ -304,11 +473,15 @@ def missing(s):
         out.append('o executável do jogo (' + s['game_exe'] + ')')
     if not Path(s['eboot']).is_file():
         out.append('o EBOOT.ELF do disco (' + s['eboot'] + ')')
+    root = disc_root(s)
+    if root and not (root / 'PS3_GAME').is_dir() and not (MAC and Path(s.get('disc_iso') or '-').is_file()):
+        out.append('o disco (' + str(root) + ('; ou a imagem .iso' if MAC else '') + ')')
     return out
 
 
 def start_game(s, log_path, parent=None):
     """Start the game; with `parent` (a window handle) it renders inside that window."""
+    ensure_disc(s)
     if s.get('backup_saves') == '1':
         backup_saves()
     apply_save_settings(s)
@@ -323,40 +496,90 @@ def start_game(s, log_path, parent=None):
 
 
 class Music:
-    """music.mp3 on a loop through Windows' MCI (no extra packages)."""
+    """music.mp3 on a loop, with no extra packages: Windows' MCI, or on macOS
+    afplay (paused by stopping the process)."""
     def __init__(self):
         self.ok = False
-        path = asset('music.mp3')
-        if not (WINDOWS and path):
-            return
-        self.mci = ctypes.windll.winmm.mciSendStringW
-        self.ok = self.send(f'open "{path}" type mpegvideo alias bgm') == 0
-        if self.ok:
-            self.send('setaudio bgm volume to 350')
+        self.path = path = asset('music.mp3')
+        self.proc = self.thread = None
+        self.closed = False
+        if WINDOWS and path:
+            self.mci = ctypes.windll.winmm.mciSendStringW
+            self.ok = self.send(f'open "{path}" type mpegvideo alias bgm') == 0
+            if self.ok:
+                self.send('setaudio bgm volume to 350')
+        elif MAC and path and shutil.which('afplay'):
+            self.ok = True
 
     def send(self, cmd):
         return self.mci(cmd, None, 0, None)
 
+    def signal(self, sig):
+        if self.proc and self.proc.poll() is None:
+            try:
+                os.kill(self.proc.pid, sig)
+            except OSError:
+                pass
+
+    def loop(self):
+        while not self.closed:
+            self.proc = subprocess.Popen(['afplay', '-v', '0.35', str(self.path)],
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.proc.wait()
+
     def play(self):
-        if self.ok:
+        if not self.ok:
+            return
+        if WINDOWS:
             self.send('play bgm repeat')
+        elif self.thread:
+            self.signal(signal.SIGCONT)
+        else:
+            self.thread = threading.Thread(target=self.loop, daemon=True)
+            self.thread.start()
 
     def pause(self):
-        if self.ok:
+        if not self.ok:
+            return
+        if WINDOWS:
             self.send('pause bgm')
+        else:
+            self.signal(signal.SIGSTOP)
 
     def close(self):
-        if self.ok:
+        if not self.ok:
+            return
+        if WINDOWS:
             self.send('close bgm')
+        else:
+            self.closed = True
+            self.signal(signal.SIGCONT)
+            self.signal(signal.SIGTERM)
 
 
 def register_font(path):
-    if WINDOWS and path.is_file():
-        try:
+    """The font for this process only (Windows: FR_PRIVATE; macOS: Core Text's
+    process scope)."""
+    if not path.is_file():
+        return False
+    try:
+        if WINDOWS:
             ctypes.windll.gdi32.AddFontResourceExW(str(path), 0x10, 0)  # FR_PRIVATE
             return True
-        except (AttributeError, OSError):
-            pass
+        if MAC:
+            cf = ctypes.cdll.LoadLibrary('/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation')
+            ct = ctypes.cdll.LoadLibrary('/System/Library/Frameworks/CoreText.framework/CoreText')
+            cf.CFURLCreateFromFileSystemRepresentation.restype = ctypes.c_void_p
+            cf.CFURLCreateFromFileSystemRepresentation.argtypes = [ctypes.c_void_p, ctypes.c_char_p,
+                                                                   ctypes.c_long, ctypes.c_bool]
+            ct.CTFontManagerRegisterFontsForURL.restype = ctypes.c_bool
+            ct.CTFontManagerRegisterFontsForURL.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p]
+            raw = str(path).encode()
+            url = cf.CFURLCreateFromFileSystemRepresentation(None, raw, len(raw), False)
+            ct.CTFontManagerRegisterFontsForURL(url, 1, None)   # kCTFontManagerScopeProcess
+            return True
+    except (AttributeError, OSError):
+        pass
     return False
 
 
@@ -373,9 +596,18 @@ class Launcher:
         self.dynamic = {}
         self.mod_vars = {}
         self.mod_order = list(self.s['mods_order'])
+        self.keymap = {c: list(k) for c, k in self.s['keymap'].items()}
+        self.padmap = dict(self.s['padmap'])
+        self.capturing = None
         self.process = None
-        self.heading = 'Cinzel Black' if register_font(HERE / 'Cinzel-Black.ttf') else 'Georgia'
-        self.ui = 'Segoe UI' if WINDOWS else 'DejaVu Sans'
+        if MAC:   # Tk on macOS counts 72 points to the inch: the sizes below assume Windows' 96
+            root.tk.call('tk', 'scaling', 1.33)
+        self.heading = 'Georgia'
+        if register_font(HERE / 'Cinzel-Black.ttf'):
+            from tkinter import font as tkfont
+            families = set(tkfont.families(root))
+            self.heading = next((f for f in ('Cinzel Black', 'Cinzel') if f in families), 'Georgia')
+        self.ui = 'Segoe UI' if WINDOWS else 'Helvetica Neue' if MAC else 'DejaVu Sans'
         root.title(f'{APP_NAME} (PC)')
         root.configure(bg=BG)
         w, h = 1180, 740
@@ -384,7 +616,11 @@ class Launcher:
         ico = icon_file()
         if ico:
             try:
-                root.iconbitmap(default=str(ico))
+                if WINDOWS:
+                    root.iconbitmap(default=str(ico))
+                else:
+                    self.icon_photo = tk.PhotoImage(file=str(ico))
+                    root.iconphoto(True, self.icon_photo)
             except tk.TclError:
                 pass
         self.style()
@@ -534,7 +770,7 @@ class Launcher:
         else:
             self.side_logo.configure(text='GOD OF WAR\nASCENSION', fg=GOLD, font=(self.heading, 15), justify='left')
         self.nav, self.current = {}, None
-        for name, title in (('home', 'Início'), ('video', 'Vídeo'), ('game', 'Jogo'),
+        for name, title in (('home', 'Início'), ('video', 'Vídeo'), ('controls', 'Controles'), ('game', 'Jogo'),
                             ('mods', 'Mods'), ('advanced', 'Avançado'), ('about', 'Sobre')):
             item = tk.Label(side, text='    ' + title, bg=BG, fg=TEXT, anchor='w', font=(self.heading, 12),
                             pady=11, cursor='hand2')
@@ -548,7 +784,7 @@ class Launcher:
         self.music_label.pack(anchor='w', padx=22, pady=(0, 6))
         self.music_label.bind('<Button-1>', lambda _e: self.toggle_music())
         self.refresh_music_label()
-        tk.Label(side, text='F11 ou Alt+Enter no jogo:\ntela cheia', bg=BG, fg=MUTED, font=(self.ui, 9),
+        tk.Label(side, text=('F11 ou Ctrl+Cmd+F' if MAC else 'F11 ou Alt+Enter') + ' no jogo:\ntela cheia', bg=BG, fg=MUTED, font=(self.ui, 9),
                  justify='left').pack(anchor='w', padx=22, pady=(0, 4))
         tk.Label(side, text=f'v{VERSION} · recompilação PS3 → PC', bg=BG, fg=MUTED, font=(self.ui, 9)).pack(
             anchor='w', padx=22, pady=(0, 18))
@@ -570,6 +806,7 @@ class Launcher:
         self.pages = {}
         self.build_home()
         self.build_video()
+        self.build_controls()
         self.build_game()
         self.build_mods()
         self.build_advanced()
@@ -581,9 +818,10 @@ class Launcher:
     def wheel(self, event):
         page = self.pages.get(self.current)
         if hasattr(page, 'scroll') and 'combobox' not in str(event.widget).lower():
-            page.scroll(int(-event.delta / 120))
+            page.scroll(-event.delta if MAC else int(-event.delta / 120))
 
     def show(self, name):
+        self.cancel_capture()
         for p in self.pages.values():
             p.pack_forget()
         self.pages[name].pack(fill='both', expand=True)
@@ -702,19 +940,271 @@ class Launcher:
 
     # ---- pages ------------------------------------------------------------------------------
     def build_video(self):
-        f = self.page('video', 'Vídeo', 'Janela e imagem do jogo.')
+        f = self.page('video', 'Vídeo', 'Renderizador, janela e imagem do jogo.')
+        rpcs3 = 'Só com o renderizador RPCS3.'
+        self.section(f, 'Renderizador')
+        if WINDOWS:
+            self.row(f, 'Renderizador', self.choice(f, 'renderer', RENDERERS),
+                     'RPCS3: o renderizador do RPCS3 (pede o jogo compilado com -DASCENSION_RPCS3_RSX=ON). '
+                     'Live draw: o desenho próprio do ps3recomp.')
+            self.row(f, 'Resolução interna', self.choice(f, 'render_scale', RENDER_SCALES),
+                     'O jogo desenha em 1280 x 720; acima disso fica mais nítido e pesa mais na GPU. ' + rpcs3)
+            self.row(f, 'Filtro anisotrópico', self.choice(f, 'aniso', ANISO_LEVELS),
+                     'Texturas vistas de lado mais nítidas. ' + rpcs3)
+        else:
+            self.row(f, 'Renderizador', self.choice(f, 'renderer', RENDERERS),
+                     'No macOS o jogo desenha com Metal.')
         self.section(f, 'Exibição')
         self.row(f, 'Modo de exibição', self.choice(f, 'display_mode', DISPLAY_MODES),
-                 'No jogo, F11 ou Alt+Enter alterna entre janela e tela cheia.')
+                 'No jogo, ' + ('F11 ou Ctrl+Cmd+F' if MAC else 'F11 ou Alt+Enter') + ' alterna entre janela e tela cheia.')
         self.row(f, 'Tamanho da janela', self.choice(f, 'window_size', WINDOW_SIZES),
-                 'O jogo desenha em 1280 x 720 e a imagem é esticada para a janela.')
+                 'O tamanho da janela do jogo' + (' (em pixels; numa tela Retina ocupa metade em pontos).' if MAC else '.'))
+        self.row(f, 'Proporção', self.choice(f, 'aspect', ASPECTS),
+                 'Esticar deforma a imagem numa janela que não é 16:9.' + ('' if MAC else ' ' + rpcs3))
+        self.row(f, 'Escala da imagem', self.choice(f, 'scale_filter', SCALE_FILTERS),
+                 'Como a imagem é ampliada até a janela.' + ('' if MAC else ' ' + rpcs3))
+        self.row(f, 'Sincronização vertical', self.choice(f, 'vsync', VSYNC_MODES),
+                 'Ligada: sem cortes na imagem, mas com um pouco mais de atraso. Automático: Metal e live draw '
+                 'ligam, RPCS3 desliga.')
         self.section(f, 'Informações na tela')
         self.row(f, 'Contador de FPS', self.choice(f, 'perf_overlay', ON_OFF),
+                 'No macOS, FPS e tempo de quadro no título da janela.' if MAC else
                  'FPS, tempo de quadro, velocidade, CPU e GPU no canto superior direito.')
-        self.note(f, 'Resolução interna maior, filtros e limitador de FPS virão quando o renderizador tiver suporte.')
+
+    # ---- controls: keyboard and mouse, controller ---------------------------------------------
+    def build_controls(self):
+        tk, ttk = self.tk, self.ttk
+        f = self.page('controls', 'Controles',
+                      'Teclado, mouse e controle funcionam juntos; o que estiver ligado responde.')
+        self.section(f, 'Geral')
+        self.row(f, 'Botão de confirmar', self.choice(f, 'enter_button', ENTER_BUTTONS),
+                 'Qual botão aceita nos menus do sistema.')
+        self.row(f, 'Esc fecha o jogo', self.choice(f, 'esc_quits', ON_OFF),
+                 'Ligado, Esc fecha o jogo em vez de chegar a ele (por padrão Esc é START).')
+
+        bar = tk.Frame(f, bg=PANEL)
+        bar.grid(row=f.next_row, column=0, columnspan=3, sticky='we', pady=(22, 0))
+        tk.Frame(f, bg=LINE, height=1).grid(row=f.next_row + 1, column=0, columnspan=3, sticky='we')
+        f.next_row += 2
+        self.control_tabs, self.control_tab_frames = {}, {}
+        for name, title in (('keyboard', 'TECLADO E MOUSE'), ('pad', 'CONTROLE')):
+            holder = tk.Frame(bar, bg=PANEL)
+            holder.pack(side='left', padx=(0, 6))
+            label = tk.Label(holder, text=title, bg=PANEL, fg=TEXT, font=(self.heading, 11), padx=16, pady=8,
+                             cursor='hand2')
+            label.pack()
+            mark = tk.Frame(holder, bg=PANEL, height=3)
+            mark.pack(fill='x')
+            label.bind('<Button-1>', lambda _e, n=name: self.show_control_tab(n))
+            self.control_tabs[name] = (label, mark)
+        for name in ('keyboard', 'pad'):
+            frame = tk.Frame(f, bg=PANEL)
+            frame.grid(row=f.next_row, column=0, columnspan=3, sticky='we', pady=(10, 0))
+            frame.columnconfigure(3, weight=1)
+            self.control_tab_frames[name] = frame
+        f.next_row += 1
+        self.build_keyboard_tab(self.control_tab_frames['keyboard'])
+        self.build_pad_tab(self.control_tab_frames['pad'])
+        self.show_control_tab('keyboard')
+
+    def show_control_tab(self, name):
+        self.cancel_capture()
+        for n, (label, mark) in self.control_tabs.items():
+            label.configure(fg=GOLD if n == name else MUTED)
+            mark.configure(bg=ACCENT_HI if n == name else PANEL)
+            if n == name:
+                self.control_tab_frames[n].grid()
+            else:
+                self.control_tab_frames[n].grid_remove()
+
+    def build_keyboard_tab(self, f):
+        tk, ttk = self.tk, self.ttk
+        top = tk.Frame(f, bg=PANEL)
+        top.grid(row=0, column=0, columnspan=4, sticky='we', pady=(0, 6))
+        tk.Label(top, text='Clique numa tecla e aperte a nova tecla ou botão do mouse. Esc cancela; × apaga.',
+                 bg=PANEL, fg=MUTED, font=(self.ui, 9)).pack(side='left')
+        ttk.Button(top, text='Clássico (setas)', command=lambda: self.key_preset('classic')).pack(side='right')
+        ttk.Button(top, text='Padrão (WASD)', command=lambda: self.key_preset('pc')).pack(side='right', padx=(0, 8))
+        self.key_cells = {}
+        r = 1
+        for group, items in CONTROL_GROUPS:
+            tk.Label(f, text=group.upper(), bg=PANEL, fg=GOLD, font=(self.heading, 10)).grid(
+                row=r, column=0, columnspan=4, sticky='w', pady=(14, 4))
+            if r == 1:
+                for col, head in ((1, 'PRINCIPAL'), (2, 'ALTERNATIVA')):
+                    tk.Label(f, text=head, bg=PANEL, fg=MUTED, font=(self.ui, 8)).grid(row=r, column=col, sticky='sw',
+                                                                                    pady=(14, 4))
+            r += 1
+            for control, title in items:
+                tk.Label(f, text=title, bg=PANEL, fg=TEXT, font=(self.ui, 10), anchor='w', width=26).grid(
+                    row=r, column=0, sticky='w', pady=2)
+                for slot in (0, 1):
+                    self.key_cells[(control, slot)] = self.key_cell(f, control, slot, r, 1 + slot)
+                r += 1
+        self.refresh_keys()
+
+    def key_cell(self, parent, control, slot, row, column):
+        tk = self.tk
+        cell = tk.Frame(parent, bg=CARD, highlightthickness=1, highlightbackground=LINE)
+        cell.grid(row=row, column=column, sticky='w', padx=(0, 10), pady=2)
+        label = tk.Label(cell, text='', bg=CARD, fg=TEXT, font=(self.ui, 10), width=16, pady=4, cursor='hand2')
+        label.pack(side='left')
+        clear = tk.Label(cell, text='×', bg=CARD, fg=MUTED, font=(self.ui, 11), padx=6, cursor='hand2')
+        clear.pack(side='left')
+        label.bind('<Button-1>', lambda _e: self.start_capture(control, slot))
+        clear.bind('<Button-1>', lambda _e: self.set_key(control, slot, None))
+        for w in (label, clear):
+            w.bind('<Enter>', lambda _e: cell.configure(highlightbackground=MUTED)
+                   if self.capturing != (control, slot) else None)
+            w.bind('<Leave>', lambda _e: cell.configure(highlightbackground=LINE)
+                   if self.capturing != (control, slot) else None)
+        return cell, label
+
+    def refresh_keys(self):
+        for (control, slot), (cell, label) in self.key_cells.items():
+            keys = self.keymap.get(control, [])
+            name = keys[slot] if slot < len(keys) else None
+            capturing = self.capturing == (control, slot)
+            label.configure(text='Aperte…' if capturing else key_label(name),
+                            fg=GOLD if capturing else (TEXT if name else MUTED))
+            cell.configure(highlightbackground=GOLD if capturing else LINE)
+
+    def set_key(self, control, slot, name):
+        """Put `name` in a control's slot; a key used elsewhere leaves that place."""
+        self.cancel_capture(refresh=False)
+        note = None
+        if name:
+            for other, keys in self.keymap.items():
+                if name in keys and (other, keys.index(name)) != (control, slot):
+                    keys.remove(name)
+                    note = f'{key_label(name)} saiu de {self.control_title(other)}.'
+        keys = [k for k in self.keymap.get(control, []) if k]
+        while len(keys) <= slot:
+            keys.append(None)
+        keys[slot] = name
+        self.keymap[control] = [k for k in keys if k]
+        self.refresh_keys()
+        self.refresh_status(note or ' ')
+
+    def control_title(self, control):
+        for group, items in CONTROL_GROUPS:
+            for c, title in items:
+                if c == control:
+                    return (group.split(' · ')[0] + ' ' + title.lower()) if c.startswith(('ls_', 'rs_')) else title.split('  ')[0]
+        return control
+
+    def key_preset(self, name):
+        self.cancel_capture(refresh=False)
+        self.keymap = {c: list(KEY_PRESETS[name].get(c, [])) for _, items in CONTROL_GROUPS for c, _ in items}
+        self.refresh_keys()
+
+    def start_capture(self, control, slot):
+        self.cancel_capture(refresh=False)
+        self.capturing = (control, slot)
+        self.refresh_keys()
+        self.refresh_status('Aperte uma tecla ou um botão do mouse para ' + self.control_title(control) + ' (Esc cancela).')
+        # Armed a moment later, so the click that started it is not taken as Mouse1.
+        self.root.after(250, self.arm_capture, (control, slot))
+
+    def arm_capture(self, which):
+        if self.capturing != which:
+            return
+        self.root.bind_all('<KeyPress>', self.capture_key)
+        self.root.bind_all('<ButtonPress>', self.capture_mouse)
+
+    def cancel_capture(self, refresh=True):
+        if not getattr(self, 'capturing', None):
+            return
+        self.capturing = None
+        self.root.unbind_all('<KeyPress>')
+        self.root.unbind_all('<ButtonPress>')
+        if refresh:
+            self.refresh_keys()
+            self.refresh_status()
+
+    def capture_key(self, event):
+        if not self.capturing:
+            return None
+        if event.keysym == 'Escape':
+            self.cancel_capture()
+            return 'break'
+        sym = event.keysym
+        name = TK_KEYS.get(sym)
+        if not name and len(sym) == 1 and sym.isascii() and sym.isalnum():
+            name = sym.upper()
+        if name:
+            self.set_key(*self.capturing, name)
+        else:
+            self.refresh_status(f'A tecla "{sym}" não pode ser usada; escolha outra (Esc cancela).')
+        return 'break'
+
+    def capture_mouse(self, event):
+        if not self.capturing:
+            return None
+        old_aqua = MAC and self.tk.TkVersion < 8.7          # Tk 8.6 on macOS: 2 is the right button
+        names = {1: 'Mouse1', 2: 'Mouse2' if old_aqua else 'Mouse3', 3: 'Mouse3' if old_aqua else 'Mouse2',
+                 8: 'Mouse4', 9: 'Mouse5'}
+        if WINDOWS and self.tk.TkVersion < 8.7:
+            names.update({4: 'Mouse4', 5: 'Mouse5'})
+        name = names.get(event.num)
+        if name:
+            self.set_key(*self.capturing, name)
+        return 'break'
+
+    def build_pad_tab(self, f):
+        tk, ttk = self.tk, self.ttk
+        top = tk.Frame(f, bg=PANEL)
+        top.grid(row=0, column=0, columnspan=4, sticky='we', pady=(0, 6))
+        tk.Label(top, text='Controles de Xbox, PlayStation e outros que o sistema reconhece. '
+                           'Qual botão do controle faz cada botão do PS3:',
+                 bg=PANEL, fg=MUTED, font=(self.ui, 9)).pack(side='left')
+        ttk.Button(top, text='Restaurar padrão', command=self.pad_defaults).pack(side='right')
+        self.pad_vars = {}
+        r = 1
+        for group, items in CONTROL_GROUPS:
+            items = [(c, t) for c, t in items if c in PAD_CONTROLS]
+            if not items:
+                continue
+            tk.Label(f, text=group.upper(), bg=PANEL, fg=GOLD, font=(self.heading, 10)).grid(
+                row=r, column=0, columnspan=4, sticky='w', pady=(14, 4))
+            r += 1
+            for control, title in items:
+                tk.Label(f, text=title, bg=PANEL, fg=TEXT, font=(self.ui, 10), anchor='w', width=26).grid(
+                    row=r, column=0, sticky='w', pady=2)
+                v = self.tk.StringVar(value=self.padmap.get(control, PAD_DEFAULTS[control]))
+                v.trace_add('write', lambda *_a, c=control, var=v: self.padmap.__setitem__(c, var.get()))
+                self.pad_vars[control] = v
+                self.choice_var(f, v, PAD_BUTTONS, width=26).grid(row=r, column=1, sticky='w', pady=2)
+                r += 1
+        tk.Label(f, text='ANALÓGICOS', bg=PANEL, fg=GOLD, font=(self.heading, 10)).grid(
+            row=r, column=0, columnspan=4, sticky='w', pady=(14, 4))
+        r += 1
+        tk.Label(f, text='Zona morta', bg=PANEL, fg=TEXT, font=(self.ui, 10), anchor='w', width=26).grid(
+            row=r, column=0, sticky='w', pady=2)
+        self.choice(f, 'pad_deadzone', DEADZONES, width=26).grid(row=r, column=1, sticky='w', pady=2)
+        tk.Label(f, text='Quanto do centro dos analógicos é ignorado; aumente se o personagem anda sozinho.',
+                 bg=PANEL, fg=MUTED, font=(self.ui, 9), wraplength=320, justify='left').grid(
+            row=r, column=2, columnspan=2, sticky='w', padx=(18, 0))
+
+    def pad_defaults(self):
+        for control, v in self.pad_vars.items():
+            v.set(PAD_DEFAULTS[control])
+        self.var('pad_deadzone').set('24')
+
+    def choice_var(self, parent, var, options, width=28):
+        """A read-only combobox over a StringVar of its own (not a setting key)."""
+        shown = self.tk.StringVar()
+        box = self.ttk.Combobox(parent, textvariable=shown, state='readonly', width=width,
+                                values=[label for _, label in options])
+        to_label, to_value = dict(options), {label: value for value, label in options}
+        shown.set(to_label.get(var.get(), options[0][1]))
+        shown.trace_add('write', lambda *_: shown.get() in to_value and var.set(to_value[shown.get()]))
+        var.trace_add('write', lambda *_: shown.get() != to_label.get(var.get()) and shown.set(to_label.get(var.get(), '')))
+        box.bind('<MouseWheel>', lambda e: 'break')
+        return box
 
     def build_game(self):
-        f = self.page('game', 'Jogo', 'Idioma e controles, como o PS3 os informa ao jogo.')
+        f = self.page('game', 'Jogo', 'Idioma, legendas e saves.')
         self.section(f, 'Idioma')
         self.row(f, 'Idioma do jogo', self.choice(f, 'language', self.languages),
                  'Textos, legendas e vozes seguem o idioma do sistema do PS3. Vozes em grego: o próprio jogo oferece no primeiro início.')
@@ -722,10 +1212,6 @@ class Launcher:
         self.row(f, 'Legendas', sub, 'Legendas nas falas e cinemáticas.')
         self.note(f, 'O jogo guarda o idioma e as legendas no save do sistema; o launcher os ajusta ali antes de '
                      'cada início, então valem mesmo depois do primeiro uso.')
-        self.section(f, 'Controles')
-        self.row(f, 'Botão de confirmar', self.choice(f, 'enter_button', ENTER_BUTTONS),
-                 'Qual botão aceita nos menus do sistema.')
-        self.row(f, 'Esc fecha o jogo', self.choice(f, 'esc_quits', ON_OFF))
         self.section(f, 'Saves')
         self.row(f, 'Backup antes de jogar', self.choice(f, 'backup_saves', ON_OFF),
                  'Copia os saves para gamedata/save-backups (os últimos 10 ficam).')
@@ -895,6 +1381,12 @@ class Launcher:
         self.section(f, 'Arquivos do jogo')
         self.path_row(f, 'game_exe', 'Executável')
         self.path_row(f, 'eboot', 'EBOOT.ELF')
+        self.path_row(f, 'disc_dir', 'Pasta do disco', folder=True,
+                      hint='A pasta com PS3_GAME.' + (' Com a imagem abaixo, o launcher a monta aqui.' if MAC else
+                                                       ' Vazio: a do EBOOT.ELF.'))
+        if MAC:
+            self.path_row(f, 'disc_iso', 'Imagem do disco (.iso)',
+                          hint='Montada só para leitura na pasta do disco ao jogar.')
         self.section(f, 'Launcher')
         self.row(f, 'Música de fundo', self.choice(f, 'music', ON_OFF))
         self.section(f, 'Runtime')
@@ -935,6 +1427,8 @@ class Launcher:
     # ---- state ------------------------------------------------------------------------------
     def gather(self):
         values = {k: v.get() for k, v in self.vars.items()}
+        values['keymap'] = {c: list(k) for c, k in self.keymap.items()}
+        values['padmap'] = dict(self.padmap)
         values['mods_order'] = list(getattr(self, 'mod_order', self.s['mods_order']))
         if getattr(self, 'mod_vars', None):
             values['mods_enabled'] = [m for m, v in self.mod_vars.items() if v.get()]
@@ -993,7 +1487,10 @@ class Launcher:
         if not path.exists():
             self.messagebox.showinfo(APP_NAME, f'Ainda não existe:\n{path}')
             return
-        os.startfile(str(path)) if WINDOWS else subprocess.Popen(['xdg-open', str(path)])
+        if WINDOWS:
+            os.startfile(str(path))
+        else:
+            subprocess.Popen(['open' if MAC else 'xdg-open', str(path)])
 
     def play(self):
         if self.process:
@@ -1006,7 +1503,7 @@ class Launcher:
             return
         host = self.enter_game_view()
         try:
-            self.process, self.log = start_game(self.s, self.log_path(), parent=host.winfo_id())
+            self.process, self.log = start_game(self.s, self.log_path(), parent=host.winfo_id() if host else None)
         except OSError as e:
             self.leave_game_view()
             self.messagebox.showerror(APP_NAME, f'O jogo não abriu:\n{e}')
@@ -1018,8 +1515,12 @@ class Launcher:
 
     def enter_game_view(self):
         """The launcher's window becomes the game's: the pages give way to a
-        black area the game renders into, at the chosen size or full screen."""
+        black area the game renders into, at the chosen size or full screen.
+        Elsewhere the game opens a window of its own and the launcher hides."""
         root = self.root
+        if not WINDOWS:
+            root.withdraw()
+            return None
         self.prev_geometry, self.prev_minsize = root.geometry(), root.minsize()
         self.side.pack_forget()
         self.right.pack_forget()
@@ -1037,6 +1538,10 @@ class Launcher:
 
     def leave_game_view(self):
         root = self.root
+        if not WINDOWS:
+            root.deiconify()
+            root.lift()
+            return
         root.attributes('-fullscreen', False)
         if WINDOWS:   # the game's F11 may have left the frame borderless
             try:
@@ -1100,12 +1605,14 @@ def main():
     app = Launcher(root)
     if SHOT:
         out = Path(sys.argv[sys.argv.index('--shot') + 1])
-        pages = ['home', 'video', 'game', 'mods', 'advanced', 'about']
+        pages = ['home', 'video', 'controls', 'game', 'mods', 'advanced', 'about']
 
         def grab(i):
             from PIL import ImageGrab
             root.update()
-            try:     # the window itself, whatever is on top of it
+            try:     # the window itself, whatever is on top of it (Windows)
+                if not WINDOWS:
+                    raise OSError
                 img = ImageGrab.grab(window=int(root.wm_frame(), 16))
             except (TypeError, ValueError, OSError):
                 x, y = root.winfo_rootx(), root.winfo_rooty()
