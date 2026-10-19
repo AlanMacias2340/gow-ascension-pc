@@ -4,12 +4,14 @@ One folder per platform. Paths are taken from the script's location, so they can
 
 | Folder | Scripts |
 |---|---|
-| `mac/` | `build.sh`, `build-gpu.sh`, `run.sh`, `launcher.sh`, `relift.sh` |
 | `windows/` | `build.ps1`, `run.ps1`, `launcher.ps1`, `relift.ps1` |
 | `linux/` | `build.sh`, `build-gpu.sh`, `run.sh`, `launcher.sh`, `relift.sh` |
-| `unix/` | the lifter and the GPU build shared by macOS and Linux |
+| `unix/` | the lifter and the GPU build shared by Linux (and the paused macOS scripts) |
+| `mac/` | paused, kept for later: `build.sh`, `build-gpu.sh`, `run.sh`, `launcher.sh`, `relift.sh` |
 
-## macOS
+## macOS (paused)
+
+macOS support is paused. The scripts stay in `mac/`, but CMake stops on Apple unless configured with `-DASCENSION_MACOS=ON`.
 
 | Script | What it does |
 |---|---|
@@ -33,7 +35,7 @@ Needs `brew install cmake ninja sdl2 glslang spirv-cross ffmpeg`, and for the GP
 
 ## Linux
 
-Same steps as macOS (`linux/build.sh`, `linux/run.sh`, `linux/launcher.sh`, `linux/relift.sh`, `linux/build-gpu.sh`), into `build/linux`. The disc is an extracted folder at `work/disc`, not a mounted ISO.
+Same steps as the macOS scripts (`linux/build.sh`, `linux/run.sh`, `linux/launcher.sh`, `linux/relift.sh`, `linux/build-gpu.sh`), into `build/linux`. The disc is an extracted folder at `work/disc`, not a mounted ISO.
 
 Python tools used with the run script (`tools\`):
 
@@ -50,7 +52,5 @@ Examples:
 ```
 
 ```sh
-scripts/mac/launcher.sh
-RPCS3=1 scripts/mac/build.sh
 scripts/linux/build.sh
 ```

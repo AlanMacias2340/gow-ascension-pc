@@ -9,7 +9,6 @@
 [![Status](https://img.shields.io/badge/status-experimento-lightgrey)](docs/STATUS.md)
 [![Release](https://img.shields.io/badge/release-ainda%20n%C3%A3o-lightgrey)](#onde-estamos)
 [![Windows](https://img.shields.io/badge/Windows-10%2F11%20x64-0078D4)](#compilando)
-[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-000000)](#compilando)
 [![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-green)](LICENSE)
 
 **Português (Brasil)** · [English](docs/README.en.md)
@@ -21,7 +20,7 @@
 O Ascension traduz o código do jogo, do processador principal (PPU) e dos SPUs do PS3, para C++ e o compila para o seu PC, sobre o runtime do [ps3recomp](https://github.com/sp00nznet/ps3recomp). Não é um emulador: é o próprio jogo, recompilado. É irmão do [Sparta](https://github.com/arnaldolima1/gow-ghost-of-sparta-pc) e do [Olympus](https://github.com/arnaldolima1/gow-chains-of-olympus-pc), que fazem o mesmo com os God of War de PSP.
 
 > [!WARNING]
-> **Um experimento: ainda não dá para jogar do começo ao fim.** O jogo abre, passa pelos menus e toca a cinemática de abertura; o menu principal já aparece, mas ainda lento. Windows e macOS (Apple Silicon).
+> **Um experimento: ainda não dá para jogar do começo ao fim.** O jogo abre, passa pelos menus e toca a cinemática de abertura; o menu principal já aparece, mas ainda lento. Só Windows por enquanto (o suporte ao macOS está pausado).
 
 > [!IMPORTANT]
 > **Nenhum dado do jogo está incluído.** Você precisa da sua própria cópia, a **versão europeia `BCES-01741`** (1.00), tirada do seu disco. Ninguém aqui pode te dar o jogo ou chaves. Projeto de fãs, sem ligação com a Sony Interactive Entertainment ou a Santa Monica Studio.
@@ -50,7 +49,7 @@ Com o jogo compilado (abaixo), abra o launcher:
 
 JOGAR abre o jogo dentro da própria janela do launcher.
 
-- **Vídeo:** renderizador (RPCS3 Vulkan ou OpenGL, live draw; Metal no Mac), resolução interna e filtro anisotrópico (RPCS3), janela ou tela cheia (F11 ou Alt+Enter também alternam durante o jogo), tamanho da janela, proporção, escala da imagem, sincronização vertical, contador de FPS.
+- **Vídeo:** renderizador (RPCS3 Vulkan ou OpenGL, live draw), resolução interna e filtro anisotrópico (RPCS3), janela ou tela cheia (F11 ou Alt+Enter também alternam durante o jogo), tamanho da janela, proporção, escala da imagem, sincronização vertical, contador de FPS.
 - **Controles:** abas para teclado e mouse (duas teclas por comando, clique e aperte a nova) e para o controle (qual botão faz cada um, zona morta). Padrão: WASD anda, setas esquivam, Espaço/J/I/L ou o mouse nos botões, Shift defende, Esc ou Enter pausa. Teclado, mouse e controle funcionam juntos.
 - **Jogo:** idioma (inglês, português, espanhol, francês, alemão, italiano, russo, polonês, turco) e legendas, que valem mesmo depois do primeiro uso; backup automático dos saves.
 - **Mods:** liga, desliga e ordena. Vem com **Pular intro** (direto ao carregamento, sem as telas de abertura); o botão **Criar mod PT-BR** monta o português do Brasil a partir da imagem do seu disco americano. Os mods incluídos são receitas: o launcher as aplica aos arquivos do seu disco, sem trazer nada do jogo.
@@ -68,7 +67,7 @@ ascension-recomp/
 
 1. **Disco:** extraia a sua imagem em `work/disc` e decripte `PS3_GAME/USRDIR/EBOOT.BIN` para `EBOOT.ELF` (com o RPCS3, ou `tools/decrypt_self.py` e o seu arquivo de chaves).
 2. **Tradução:** gere o código com o pipeline do ps3recomp. Os comandos exatos estão em [docs/STATUS.md](docs/STATUS.md#how-it-is-built).
-3. **Build:** CMake e Ninja; no Windows com o Visual Studio 2022 (clang-cl) e `.\scripts\windows\build.ps1`, no macOS com o Apple clang e `scripts/mac/build.sh`. Um build do zero leva de 20 a 40 minutos e pede 16 GB de memória.
+3. **Build:** CMake e Ninja; no Windows com o Visual Studio 2022 (clang-cl) e `.\scripts\windows\build.ps1`. Um build do zero leva de 20 a 40 minutos e pede 16 GB de memória.
 
 Os saves ficam em `gamedata/dev_hdd0`.
 
