@@ -1,21 +1,46 @@
-# Build AscensionRecomp.exe (incremental ninja in build\win) and log it.
+# Build AscensionRecomp.exe (ninja in build\win) and log it. The settings
+# come from .env (scripts\windows\env.ps1).
 #
 #   .\scripts\windows\build.ps1                 # log: build\logs\build.log
 #   .\scripts\windows\build.ps1 -Name sse41     # log: build\logs\build-sse41.log
+#   .\scripts\windows\build.ps1 -Configure      # run CMake again with .env's settings first
 #
-# Prints how long it took, the error lines if any, and the last line of the
-# log; the exit code is ninja's.
-param([string]$Name = "")
+# CMake runs by itself the first time (no build\win\build.ninja). Prints how
+# long it took, the error lines if any, and the last line of the log; the
+# exit code is ninja's.
+param([string]$Name = "", [switch]$Configure)
 
-$Root   = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$Build  = Join-Path $Root "build\win"
-$Logs   = Join-Path $Root "build\logs"
-$Vcvars = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
+. (Join-Path $PSScriptRoot "env.ps1")
+$Build = Join-Path $Root "build\win"
+$Logs  = Join-Path $Root "build\logs"
 New-Item -ItemType Directory -Force $Logs | Out-Null
 $Log = Join-Path $Logs ($(if ($Name) { "build-$Name.log" } else { "build.log" }))
 
+if ($Configure -or -not (Test-Path (Join-Path $Build "build.ninja"))) {
+    if ($Cfg.RPCS3_RSX -and -not (Test-Path (Join-Path $Cfg.GPU_BUILD_DIR "ps3rsx.lib"))) {
+        Write-Host "RPCS3_RSX=1 needs $($Cfg.GPU_BUILD_DIR)\ps3rsx.lib: run .\scripts\windows\build-gpu.ps1 first"
+        exit 1
+    }
+    $onoff = { param($b) if ($b) { "ON" } else { "OFF" } }
+    $cmakeArgs = @(
+        "-S", "`"$Root`"", "-B", "`"$Build`"", "-G", "Ninja",
+        "-DCMAKE_BUILD_TYPE=$($Cfg.BUILD_TYPE)",
+        "-DCMAKE_C_COMPILER=clang-cl", "-DCMAKE_CXX_COMPILER=clang-cl",
+        "-DPS3RECOMP_DIR=`"$($Cfg.PS3KIT_DIR)`"",
+        "-DPS3RECOMP_FFMPEG_RUNTIME=ON", "-DPS3RECOMP_FFMPEG_INCLUDE_DIR=`"$($Cfg.FFMPEG_INCLUDE_DIR)`"",
+        "-DASCENSION_SPU_FMA=$(& $onoff $Cfg.SPU_FMA)",
+        "-DASCENSION_RPCS3_RSX=$(& $onoff $Cfg.RPCS3_RSX)",
+        "-DASCENSION_RPCS3_BUILD=`"$($Cfg.GPU_BUILD_DIR)`""
+    ) -join " "
+    $ConfLog = Join-Path $Logs "configure.log"
+    Write-Host "configuring build\win (log: $ConfLog)"
+    cmd /c "`"$($Cfg.VCVARS)`" >nul && cmake $cmakeArgs" 2>&1 | Out-File -Encoding utf8 $ConfLog
+    if ($LASTEXITCODE -ne 0) { Get-Content $ConfLog -Tail 20; exit $LASTEXITCODE }
+}
+
+$jobs = if ($Cfg.JOBS) { "-j $($Cfg.JOBS)" } else { "" }
 $sw = [Diagnostics.Stopwatch]::StartNew()
-cmd /c "`"$Vcvars`" >nul && ninja -C `"$Build`"" 2>&1 | Out-File -Encoding utf8 $Log
+cmd /c "`"$($Cfg.VCVARS)`" >nul && ninja -C `"$Build`" $jobs" 2>&1 | Out-File -Encoding utf8 $Log
 $code = $LASTEXITCODE
 $sw.Stop()
 

@@ -15,8 +15,8 @@
 set -e
 here=$(cd "$(dirname "$0")/../.." && pwd)
 top=$(cd "$here/.." && pwd)
-kit=ps3kit; [ -d "$top/$kit" ] || kit=ps3recomp   # the toolkit beside this repo
-tools="$top/$kit/tools"
+. "$here/scripts/unix/env.sh"
+tools="$PS3KIT_DIR/tools"
 spu="$here/src/spu"
 elf=${EBOOT_ELF:-$here/input/EBOOT.ELF}
 if [ -z "$PYTHON" ]; then
@@ -40,7 +40,7 @@ lift() {
             --title ascension --relift \
             --extra-funcs spu_wws_pm_at_0077CA80=0xA2C,0xA68,0x3368,0x3378 > "$log" 2>&1 ;;
     jobmods)
-        "$PYTHON" "$tools/lift_jobmods.py" --jobmods "$top/work/jobmods" --out "$spu" \
+        "$PYTHON" "$tools/lift_jobmods.py" --jobmods "$WORK_DIR/jobmods" --out "$spu" \
             --register "$spu/jobmods_register.c" --symbol-prefix ascension \
             --extra-funcs-json "$here/tools/jobmods_extra_funcs.json" > "$log" 2>&1 ;;
     fragments)

@@ -31,8 +31,8 @@ param(
     [int]$CaptureAt = 0                 # press F12 (frame capture into captures\) at this second
 )
 
-$Root    = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$Work    = Join-Path (Split-Path -Parent $Root) "work"
+. (Join-Path $PSScriptRoot "env.ps1")
+$Work    = $Cfg.WORK_DIR
 $Exe     = Join-Path $Root "build\win\AscensionRecomp.exe"
 $Elf     = Join-Path $Work "disc\PS3_GAME\USRDIR\EBOOT.ELF"
 $Logs    = Join-Path $Root "build\logs"

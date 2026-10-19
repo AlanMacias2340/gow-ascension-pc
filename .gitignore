@@ -21,3 +21,7 @@ scratch/
 
 # Frame captures (F12 / run.ps1 -CaptureAt): frames of the game itself.
 /captures/
+
+# Local build settings (scripts read them; never committed).
+/.env
+/.env.*

@@ -1,14 +1,14 @@
 #!/bin/sh
-# Build RPCS3's RSX (ps3recomp/gpu) into work/gpu-build.
+# Build RPCS3's RSX (the toolkit's gpu/) into GPU_BUILD_DIR (settings from .env).
 # macOS: MoltenVK (brew install molten-vk vulkan-loader vulkan-headers).
 # Linux: the Vulkan SDK or distro vulkan packages, and libgl.
-# Then rebuild the game with RPCS3=1 scripts/mac/build.sh (or scripts/linux/build.sh).
+# Then set RPCS3_RSX=1 in .env and run CONFIGURE=1 scripts/mac/build.sh (or scripts/linux/build.sh).
 set -e
 here=$(cd "$(dirname "$0")/../.." && pwd)   # ascension/
-top=$(cd "$here/.." && pwd)
-kit=ps3kit; [ -d "$top/$kit" ] || kit=ps3recomp   # the toolkit beside this repo
-gpu="$top/$kit/gpu"
-build="$top/work/gpu-build"
+. "$here/scripts/unix/env.sh"
+[ -n "$GPU_BUILD_DIR" ] || { echo "missing GPU_BUILD_DIR in $here/.env" >&2; exit 1; }
+gpu="$PS3KIT_DIR/gpu"
+build="$GPU_BUILD_DIR"
 logs="$here/build/logs"
 mkdir -p "$logs"
 log="$logs/gpu-build.log"

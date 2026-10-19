@@ -5,7 +5,10 @@
 #
 #   scripts/mac/build.sh            # build
 #   scripts/mac/build.sh <name>     # same, log named build-<name>.log
-#   RPCS3=1 scripts/mac/build.sh    # also link RPCS3's RSX (scripts/mac/build-gpu.sh first)
+#   CONFIGURE=1 scripts/mac/build.sh   # run CMake again (after changing .env)
+#
+# Settings from .env (scripts/unix/env.sh); RPCS3_RSX=1 there links RPCS3's RSX
+# (scripts/mac/build-gpu.sh first).
 #
 # Needs: brew install cmake ninja sdl2 glslang spirv-cross ffmpeg
 # A build from scratch takes 20-40 minutes and wants 16 GB of memory; JOBS=<n>
@@ -13,6 +16,7 @@
 # PPU unit takes 1-2 GB).
 set -e
 here=$(cd "$(dirname "$0")/../.." && pwd)
+. "$here/scripts/unix/env.sh"
 build="$here/build/mac"
 logs="$here/build/logs"
 mkdir -p "$logs"
@@ -28,18 +32,17 @@ if [ -n "$missing" ]; then
     exit 1
 fi
 
-rpcs3=""
-if [ "${RPCS3:-}" = 1 ]; then
-    rpcs3="-DASCENSION_RPCS3_RSX=ON"
-    gpu="$here/../work/gpu-build/libps3rsx.a"
-    if [ ! -f "$gpu" ]; then
-        echo "RPCS3=1 needs $gpu: run scripts/mac/build-gpu.sh first" >&2
+rpcs3="-DASCENSION_RPCS3_RSX=OFF"
+if [ "$RPCS3_RSX" = 1 ]; then
+    rpcs3="-DASCENSION_RPCS3_RSX=ON -DASCENSION_RPCS3_BUILD=$GPU_BUILD_DIR"
+    if [ ! -f "$GPU_BUILD_DIR/libps3rsx.a" ]; then
+        echo "RPCS3_RSX=1 needs $GPU_BUILD_DIR/libps3rsx.a: run scripts/mac/build-gpu.sh first" >&2
         exit 1
     fi
 fi
-if [ ! -f "$build/build.ninja" ] || [ -n "$rpcs3" ]; then
-    cmake -S "$here" -B "$build" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-        -DPS3RECOMP_FFMPEG_RUNTIME=ON -DPS3RECOMP_FFMPEG_INCLUDE_DIR="$(brew --prefix)/include" \
+if [ ! -f "$build/build.ninja" ] || [ "${CONFIGURE:-}" = 1 ]; then
+    cmake -S "$here" -B "$build" -G Ninja -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DPS3RECOMP_DIR="$PS3KIT_DIR" \
+        -DPS3RECOMP_FFMPEG_RUNTIME=ON -DPS3RECOMP_FFMPEG_INCLUDE_DIR="${FFMPEG_INCLUDE_DIR:-$(brew --prefix)/include}" \
         $rpcs3 \
         > "$logs/configure.log" 2>&1 || { tail -n 20 "$logs/configure.log"; exit 1; }
 fi

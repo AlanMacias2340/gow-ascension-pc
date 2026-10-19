@@ -10,15 +10,14 @@ param(
     [string]$Only = ""
 )
 
-$Root  = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$Top   = Split-Path -Parent $Root
-$Kit   = if (Test-Path (Join-Path $Top "ps3kit")) { "ps3kit" } else { "ps3recomp" }   # the toolkit beside this repo
-$Tools = Join-Path $Top "$Kit\tools"
+. (Join-Path $PSScriptRoot "env.ps1")
+$Work  = $Cfg.WORK_DIR
+$Tools = Join-Path $Cfg.PS3KIT_DIR "tools"
 $Spu   = Join-Path $Root "src\spu"
 $Log   = Join-Path $Root "build\logs\relift-$What.log"
 
 if ($What -eq "jobmods") {
-    $mods = Join-Path $Top "work\jobmods"
+    $mods = Join-Path $Work "jobmods"
     if ($Only) {
         # Lift one module in a scratch folder and copy only its sources over:
         # rewriting all of them would make every module recompile.
@@ -38,7 +37,7 @@ if ($What -eq "jobmods") {
             --symbol-prefix ascension --extra-funcs-json (Join-Path $Root "tools\jobmods_extra_funcs.json") 2>&1 | Tee-Object $Log
     }
 } else {
-    python (Join-Path $Tools "lift_spu_pic.py") --elf (Join-Path $Top "work\disc\PS3_GAME\USRDIR\EBOOT.ELF") `
+    python (Join-Path $Tools "lift_spu_pic.py") --elf (Join-Path $Work "disc\PS3_GAME\USRDIR\EBOOT.ELF") `
         --fragments (Join-Path $Root "tools\job_fragments.json") --out $Spu --register (Join-Path $Spu "pic_register.c") `
         --symbol-prefix ascension 2>&1 | Tee-Object $Log
 }
