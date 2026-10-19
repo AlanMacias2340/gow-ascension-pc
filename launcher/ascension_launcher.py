@@ -409,6 +409,7 @@ def game_environment(s):
     env['PS3_FULLSCREEN'] = '1' if s['display_mode'] == 'fullscreen' else '0'
     env['PS3_ESC_QUITS'] = s['esc_quits']
     env['LD_PERF_OVERLAY'] = s['perf_overlay']
+    env['PS3_OVERLAY_FONT'] = str(HERE / 'Cinzel-Black.ttf')   # RPCS3's overlay in the launcher's font
     if MAC:
         env['PS3RECOMP_METAL_FPS'] = s['perf_overlay']    # in the window's title
     # Video

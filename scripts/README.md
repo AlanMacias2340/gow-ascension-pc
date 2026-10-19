@@ -28,6 +28,7 @@ Needs `brew install cmake ninja sdl2 glslang spirv-cross ffmpeg`, and for the GP
 | `windows/build.ps1 [-Name x]` | `vcvars64` + `ninja -C build\win`, log in `build\logs\build[-x].log`. |
 | `windows/run.ps1` | Runs the game, then `tools\log_summary.py`. `-Menu`, `-CaptureAt`, `-Profile`. |
 | `windows/launcher.ps1 [-Play]` | The launcher. |
+| `windows/snap.ps1 -Out x.png` | Saves the game window as a PNG, even behind other windows. |
 | `windows/relift.ps1 jobmods\|fragments` | Re-lifts SPU job modules or fragments. `-Only <sha>` lifts one module. |
 
 ## Linux

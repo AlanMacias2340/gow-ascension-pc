@@ -46,7 +46,7 @@
 //                      tasks' barriers (the Mac never reached the loading
 //                      screen). It waits on the game's own progress, not on
 //                      a clock.
-//   GCM_ROUND_RING     RsxSync's ring of 27 frame reports (0x1101ED10): only
+//   GCM_ROUND_RING     RsxSync's ring of 18 frame reports (0x1101ED00): only
 //                      those are watched. Another job polls reports at
 //                      0x1124xxxx/0x1126xxxx without reading them again, and
 //                      the gate waited a second for each. RsxSync reads its
@@ -93,7 +93,14 @@
 #include <windows.h>
 #else
 #include <stdlib.h>
+#include <unistd.h>
 #endif
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+#include <stdint.h>
+#include <stdio.h>
+#include <string>
 
 namespace {
 
@@ -117,13 +124,43 @@ struct AscensionDefaults {
         set_default("GCM_PARK_SPU_HOLD_MS", "1000");
         set_default("GCM_REPORT_SPU_HOLD_MS", "50");
         set_default("GCM_ROUND_GATE", "9BAC30");
-        set_default("GCM_ROUND_RING", "1101ED10,27");
+        set_default("GCM_ROUND_RING", "1101ED00,18");
         set_default("SPURS_READY_LEVEL", "1");
         set_default("SPURS_MAXCONT", "3=5,15=5,16=5,17=5");
         set_default("SPU_REJOIN", "204:9700-1C000");
         set_default("SPU_REJOIN_CALL", "1");
         set_default("LD_PERF_OVERLAY", "1");
+        // RPCS3's performance overlay in the launcher's style: its Cinzel and
+        // palette (text, panel, gold titles).
+        set_default("PS3_OVERLAY_COLORS", "#E2B86AFF,#0B090899,#E2B86AFF,#00000000");
+        set_default_overlay_font();
         set_default("PS3_VERBOSE", "0");
+    }
+
+    // launcher/Cinzel-Black.ttf beside a build in build/<platform>/ (the
+    // launcher passes its own copy).
+    static void set_default_overlay_font()
+    {
+        char exe[4096] = {0};
+#ifdef _WIN32
+        if (!GetModuleFileNameA(nullptr, exe, sizeof(exe))) return;
+#elif defined(__APPLE__)
+        uint32_t n = sizeof(exe);
+        if (_NSGetExecutablePath(exe, &n)) return;
+#else
+        if (readlink("/proc/self/exe", exe, sizeof(exe) - 1) <= 0) return;
+#endif
+        std::string dir = exe;
+        for (int up = 0; up < 3; up++) {
+            const auto slash = dir.find_last_of("/\\");
+            if (slash == std::string::npos) return;
+            dir.resize(slash);
+        }
+        const std::string font = dir + "/launcher/Cinzel-Black.ttf";
+        if (FILE* f = fopen(font.c_str(), "rb")) {
+            fclose(f);
+            set_default("PS3_OVERLAY_FONT", font.c_str());
+        }
     }
 } s_defaults;
 

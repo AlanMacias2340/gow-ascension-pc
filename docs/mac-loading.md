@@ -34,3 +34,14 @@ A janela do RPCS3 no Mac (`rsx_cocoa_window.m`) não tirava os eventos da fila d
 - `SPU_TASK_TIMELOG=1`: entrada e saída de cada `WAIT_SIGNAL`, com o objeto de espera (`wobj`: a barreira, ou 0 na espera de rodada) e se o sinal já estava lá.
 - `GCM_HOLD_LOG=1`: cada placeholder que esperou, com a rodada e o tempo.
 - `SPU_MFCLOG_EA=1101ED00,9BAC00`: os GETs do RsxSync nos reports e no descritor.
+
+## Windows (19/10/2026, depois)
+
+No Windows o RSX do RPCS3 escreve os reports bem mais rápido, e o gate do Mac deixava a rodada 2 passar no meio da rodada 1 (travava em ~15 s, metade das execuções). Duas brechas:
+
+1. Só era vigiado um report que a SPU já tinha consultado antes da escrita. O RSX escrevia o report seguinte enquanto o RsxSync ainda tratava o anterior.
+2. O report contava como tratado assim que era lido, mas o RsxSync lê o report **antes** de escrever o descritor da rodada.
+
+Agora (`GCM_ROUND_RING=1101ED00,18`, o anel do RsxSync, 18 reports de `ED00` a `EE10`): todo report armado do anel é vigiado, e ele só deixa de estar pendente quando a SPU consulta **outro** report do anel (o RsxSync já escreveu o descritor e sinalizou as tarefas). Reports fora do anel (outro job consulta `0x1124xxxx`/`0x1126xxxx` sem reler) não seguram mais o RSX. Se o RsxSync parar de ler (1 s), volta a exigir a consulta vista antes, até ele ler de novo.
+
+`GCM_HOLD_LOG=2` mostra cada report que o gate libera.
