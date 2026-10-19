@@ -279,12 +279,12 @@ if(WIN32)
 endif()
 
 # RPCS3's RSX as the renderer (ps3recomp gpu/, v2): links ps3rsx and RPCS3's
-# emulator library, built beforehand with MSVC from ps3recomp/gpu/rpcs3_build.
+# emulator library, built beforehand with MSVC from ps3recomp/gpu.
 # Off by default; when on, the game still draws with live draw unless run
 # with PS3_RSX=rpcs3. The executable is then GPL-2.0, like RPCS3.
 option(ASCENSION_RPCS3_RSX "Link RPCS3's RSX renderer (ps3rsx)" OFF)
-set(ASCENSION_RPCS3_BUILD "${CMAKE_CURRENT_SOURCE_DIR}/../work/rpcs3-lib" CACHE PATH
-    "Build tree of ps3recomp/gpu/rpcs3_build")
+set(ASCENSION_RPCS3_BUILD "${CMAKE_CURRENT_SOURCE_DIR}/../work/gpu-build" CACHE PATH
+    "Build tree of ps3recomp/gpu")
 if(ASCENSION_RPCS3_RSX)
     include("${PS3RECOMP_DIR}/gpu/ps3rsx.cmake")
     ps3rsx_link(${PROJECT_NAME} "${ASCENSION_RPCS3_BUILD}"
