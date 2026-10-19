@@ -1,13 +1,13 @@
 # Build AscensionRecomp.exe (incremental ninja in build\win) and log it.
 #
-#   .\scripts\build.ps1                 # log: build\logs\build.log
-#   .\scripts\build.ps1 -Name sse41     # log: build\logs\build-sse41.log
+#   .\scripts\windows\build.ps1                 # log: build\logs\build.log
+#   .\scripts\windows\build.ps1 -Name sse41     # log: build\logs\build-sse41.log
 #
 # Prints how long it took, the error lines if any, and the last line of the
 # log; the exit code is ninja's.
 param([string]$Name = "")
 
-$Root   = Split-Path -Parent $PSScriptRoot
+$Root   = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $Build  = Join-Path $Root "build\win"
 $Logs   = Join-Path $Root "build\logs"
 $Vcvars = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"

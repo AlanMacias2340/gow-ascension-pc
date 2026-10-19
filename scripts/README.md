@@ -1,29 +1,55 @@
 # scripts
 
-PowerShell helpers for the Windows build. Run them from anywhere; paths are taken from the script's location.
+One folder per platform. Paths are taken from the script's location, so they can be run from anywhere.
+
+| Folder | Scripts |
+|---|---|
+| `mac/` | `build.sh`, `build-gpu.sh`, `run.sh`, `launcher.sh`, `relift.sh` |
+| `windows/` | `build.ps1`, `run.ps1`, `launcher.ps1`, `relift.ps1` |
+| `linux/` | `build.sh`, `build-gpu.sh`, `run.sh`, `launcher.sh`, `relift.sh` |
+| `unix/` | the lifter and the GPU build shared by macOS and Linux |
+
+## macOS
 
 | Script | What it does |
 |---|---|
-| `build.ps1 [-Name x]` | `vcvars64` + `ninja -C build\win`, log in `build\logs\build[-x].log`; prints the time, the error lines and the last line. |
-| `run.ps1 [-Seconds 120] [-Save fresh\|backup\|keep] [-Name run] [-Env @{...}] [-Profile [-ProfileAt 45]]` | Runs the game with the window visible for a while, then kills it and prints `tools\log_summary.py`. `fresh` (default) moves the save aside so the first-use menus show; `backup` puts `work\save-backup` in place (straight to the cinematic). `-Profile` samples the busiest threads with `tools\profile_threads.py`. |
-| | `-Menu`: save-backup, the launcher's mods and X presses straight to the main menu. `-CaptureAt N`: F12 at N s (a frame's draws, shaders and surfaces in `captures\cap_<frame>\`). `-ProfileVerb profip`: the exclusive profile per instruction instead of per function. |
-| `launcher.ps1 [-Play]` | Opens the launcher (`launcherscension_launcher.py`): window, language, mods, music; `-Play` starts the game with the saved settings. |
-| `relift.ps1 jobmods [-Only <sha>]` | Re-lifts the SPU job modules with `tools\jobmods_extra_funcs.json`; `-Only` re-lifts one module and copies only its sources, so only it recompiles. |
-| `relift.ps1 fragments` | Lifts `tools\job_fragments.json` position-independently into `src\spu\pic_*`. |
+| `mac/build.sh [name]` | Apple clang + Ninja into `build/mac`. `RPCS3=1` also links RPCS3's RSX. |
+| `mac/build-gpu.sh` | RPCS3's RSX into `work/gpu-build` (MoltenVK). Run before `RPCS3=1`. |
+| `mac/run.sh` | Mounts the ISO (`ASCENSION_ISO`) at `work/disc` and opens the game. |
+| `mac/launcher.sh [--play]` | The launcher. Music plays through `afplay`. |
+| `mac/relift.sh ppu\|spu\|jobmods\|fragments\|all` | Lifts the game into `src/`. |
 
-Python tools used with them (`tools\`):
+Needs `brew install cmake ninja sdl2 glslang spirv-cross ffmpeg`, and for the GPU `molten-vk vulkan-loader vulkan-headers`.
 
-- `log_summary.py <log>`: fps, the end-of-loading stall, the cinematic's speed (`VDEC_TIMELOG=1`), interpreted SPU code (`SPU_INTERP_HIST=1`), the HLE/syscall/poll histograms and error-like lines.
-- `frame_timeline.py <log>`: the per-frame chain (GPU report, RsxSync, MeshProc, EDGE, video picture) in time; see its docstring for the variables to set.
-- `compare_menu.py <dump dir> <out.png>`: the newest `LD_FRAME_DUMP` frame next to `captures\referencia\referencia.png` (run it with `python -P`).
-- `profile_threads.py --pid --dbg`: CPU per thread, then `prof` on the busiest through `PS3_DEBUG`, resolved with `maprva.py`.
+## Windows
+
+| Script | What it does |
+|---|---|
+| `windows/build.ps1 [-Name x]` | `vcvars64` + `ninja -C build\win`, log in `build\logs\build[-x].log`. |
+| `windows/run.ps1` | Runs the game, then `tools\log_summary.py`. `-Menu`, `-CaptureAt`, `-Profile`. |
+| `windows/launcher.ps1 [-Play]` | The launcher. |
+| `windows/relift.ps1 jobmods\|fragments` | Re-lifts SPU job modules or fragments. `-Only <sha>` lifts one module. |
+
+## Linux
+
+Same steps as macOS (`linux/build.sh`, `linux/run.sh`, `linux/launcher.sh`, `linux/relift.sh`, `linux/build-gpu.sh`), into `build/linux`. The disc is an extracted folder at `work/disc`, not a mounted ISO.
+
+Python tools used with the run script (`tools\`):
+
+- `log_summary.py <log>`: fps, the end-of-loading stall, the cinematic's speed, histograms.
+- `frame_timeline.py <log>`: the per-frame chain in time.
+- `compare_menu.py <dump dir> <out.png>`: the newest frame dump next to the reference shot.
+- `profile_threads.py --pid --dbg`: CPU per thread.
 
 Examples:
 
 ```powershell
-.\scripts\build.ps1 -Name vblank
-.\scripts\run.ps1 -Save backup -Seconds 90 -Name cin -Env @{ VDEC_TIMELOG = "1" }
-.\scripts\run.ps1 -Seconds 80 -Name menus -Profile -ProfileAt 45
-.\scripts\run.ps1 -Save backup -Seconds 75 -Name tl -Env @{ SPU_ATOM_EA = "99AA80"; SPU_ATOM_EA_MAX = "1"; PPU_WWATCH = "99AA80"; PPU_WWATCH_LEN = "0x80"; PPU_WWATCH_MAX = "300000"; GCM_REPORTLOG = "1000000"; VDEC_TIMELOG = "1" }
-python tools\frame_timeline.py build\logs\tl.log
+.\scripts\windows\build.ps1 -Name vblank
+.\scripts\windows\run.ps1 -Save backup -Seconds 90 -Name cin -Env @{ VDEC_TIMELOG = "1" }
+```
+
+```sh
+scripts/mac/launcher.sh
+RPCS3=1 scripts/mac/build.sh
+scripts/linux/build.sh
 ```

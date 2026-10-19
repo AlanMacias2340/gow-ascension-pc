@@ -43,7 +43,7 @@ No release yet. The detailed progress is in [STATUS.md](STATUS.md), the mileston
 With the game built (below), open the launcher:
 
 ```powershell
-.\scripts\launcher.ps1
+.\scripts\windows\launcher.ps1
 ```
 
 <p align="center"><img src="images/launcher-home.jpg" alt="The Ascension launcher" width="760"></p>
@@ -69,7 +69,7 @@ ascension-recomp/
 
 1. **Disc:** extract your image into `work/disc` and decrypt `PS3_GAME/USRDIR/EBOOT.BIN` to `EBOOT.ELF` (with RPCS3, or `tools/decrypt_self.py` and your keys file).
 2. **Translation:** generate the code with ps3recomp's pipeline. The exact commands are in [STATUS.md](STATUS.md#how-it-is-built).
-3. **Build:** CMake and Ninja; on Windows with Visual Studio 2022 (clang-cl) and `.\scripts\build.ps1`, on macOS with Apple clang. A build from scratch takes 20 to 40 minutes and needs 16 GB of memory.
+3. **Build:** CMake and Ninja; on Windows with Visual Studio 2022 (clang-cl) and `.\scripts\windows\build.ps1`, on macOS with Apple clang and `scripts/mac/build.sh`. A build from scratch takes 20 to 40 minutes and needs 16 GB of memory.
 
 Saves are kept in `gamedata/dev_hdd0`.
 

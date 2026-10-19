@@ -1,14 +1,14 @@
 # Launcher
 
-`ascension_launcher.py` (Python 3 with Tk, and Pillow) sets up the game and starts it. Open it with `scripts\launcher.ps1`, or `python launcher\ascension_launcher.py`; `--play` starts the game with the saved settings and no window.
+`ascension_launcher.py` (Python 3 with Tk, and Pillow) sets up the game and starts it. Open it with `scripts\windows\launcher.ps1`, `scripts/mac/launcher.sh` or `scripts/linux/launcher.sh`, or `python launcher/ascension_launcher.py`; `--play` starts the game with the saved settings and no window.
 
-On macOS: `brew install python@3.12 python-tk@3.12`, a venv with `pip install pillow`, then `python launcher/ascension_launcher.py`. The game opens a window of its own (the launcher hides until it closes), the disc `.iso` set in Advanced is mounted read-only at `work/disc` when needed, the executable is `build/AscensionRecomp` and the `EBOOT.ELF` is read from `input/`. Music plays through `afplay`.
+On macOS: `brew install python@3.12 python-tk@3.12`, a venv with `pip install pillow`, then `scripts/mac/launcher.sh`. The game opens a window of its own (the launcher hides until it closes), the disc `.iso` set in Advanced is mounted read-only at `work/disc` when needed, the executable is `build/mac/AscensionRecomp` (`scripts/mac/build.sh`) and the `EBOOT.ELF` is read from `input/`. Music plays through `/usr/bin/afplay`.
 
 Pages: Home (cross-fading artwork, quick settings), Video, Controls, Game, Mods, Advanced. Settings are kept in `%APPDATA%\ascension-launcher\settings.json` (macOS: `~/Library/Application Support/ascension-launcher/settings.json`) and reach the game as ps3recomp environment switches:
 
 | Setting | Switch |
 |---|---|
-| Renderer | `PS3_RSX=rpcs3` and `PS3_RSX_RENDERER=vulkan`/`opengl` (RPCS3's RSX, a build with `-DASCENSION_RPCS3_RSX=ON`), or neither (live draw); macOS: Metal |
+| Renderer | `PS3_RSX=rpcs3` and `PS3_RSX_RENDERER=vulkan`/`opengl` (RPCS3's RSX, a build with `-DASCENSION_RPCS3_RSX=ON`), or neither (live draw). macOS: Vulkan through MoltenVK, or live draw's Metal. OpenGL is not offered on macOS |
 | Internal resolution, anisotropic filter | `PS3_RENDER_SCALE` (percent), `PS3_ANISO` (RPCS3 only) |
 | Display mode, window size | `PS3_FULLSCREEN`, `PS3_WINDOW_SIZE` (F11 or Alt+Enter toggles in game; macOS F11 or Ctrl+Cmd+F) |
 | Aspect ratio, image scaling | `PS3_ASPECT=keep`/`stretch`, `PS3_SCALE_FILTER=linear`/`nearest`/`fsr` (RPCS3 and Metal) |

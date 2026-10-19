@@ -3,7 +3,7 @@
 usage: python tools/profile_threads.py --pid <pid> --dbg <PS3_DEBUG file>
            [--threads 4] [--secs 3] [--map build/win/AscensionRecomp.map] [--out prof.txt]
 
-The game must have been started with PS3_DEBUG=<dbg file> (scripts/run.ps1 -Profile
+The game must have been started with PS3_DEBUG=<dbg file> (scripts/windows/run.ps1 -Profile
 does it). Measures every thread's CPU time over 3 s, asks the debug console for
 `prof <tid> <secs>` on the busiest ones, waits for the answers and resolves the
 addresses with tools/maprva.py. Prints the top exclusive entries per thread.

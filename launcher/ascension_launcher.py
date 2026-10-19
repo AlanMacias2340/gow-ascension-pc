@@ -14,9 +14,9 @@ import ctypes
 import json
 import os
 import shutil
-import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import webbrowser
@@ -39,6 +39,26 @@ elif MAC:
 else:
     CONFIG_DIR = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'ascension-launcher'
 CONFIG_FILE = CONFIG_DIR / 'settings.json'
+
+
+def mac_dock(show):
+    """Python stays in the Dock after the Tk window is withdrawn, so the game
+    looks like a second icon. Accessory policy takes this process out of the
+    Dock; regular puts it back when the game closes."""
+    if not MAC:
+        return
+    src = HERE / 'mac_dock.m'
+    dylib = CONFIG_DIR / 'mac_dock.dylib'
+    try:
+        if src.is_file() and (not dylib.is_file() or dylib.stat().st_mtime < src.stat().st_mtime):
+            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            subprocess.run(['clang', '-dynamiclib', '-framework', 'Cocoa', '-o', str(dylib), str(src)],
+                           check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        lib = ctypes.CDLL(str(dylib))
+        lib.ascension_dock.argtypes = [ctypes.c_int]
+        lib.ascension_dock(1 if show else 0)
+    except (AttributeError, OSError, subprocess.CalledProcessError):
+        pass
 BACKGROUNDS = ['background.jpg', 'background-2.jpg', 'background-3.jpg', 'background-4.png']
 
 # The PS3 console languages the disc has text and voices for (CELL_SYSUTIL_LANG_*).
@@ -55,14 +75,18 @@ ENTER_BUTTONS = [('cross', 'X confirma (Ocidente)'), ('circle', 'O confirma (Jap
 ON_OFF = [('1', 'Ligado'), ('0', 'Desligado')]
 
 # Video. The renderer: RPCS3's RSX (ps3recomp gpu/, a build with
-# -DASCENSION_RPCS3_RSX=ON) or live draw on Windows; Metal on macOS.
-RENDERERS = ([('rpcs3-vulkan', 'RPCS3 · Vulkan'), ('rpcs3-opengl', 'RPCS3 · OpenGL'),
-              ('livedraw', 'Live draw · Direct3D 12')] if WINDOWS else [('metal', 'Metal')])
+# -DASCENSION_RPCS3_RSX=ON) or live draw. On macOS, Vulkan is MoltenVK and
+# live draw is Metal; the GL backend is WGL, so it is not offered there.
+RENDERERS = ([('rpcs3-vulkan', 'RPCS3 · Vulkan (MoltenVK)'),
+              ('metal', 'Live draw · Metal')] if MAC else
+             [('rpcs3-vulkan', 'RPCS3 · Vulkan'), ('rpcs3-opengl', 'RPCS3 · OpenGL'),
+              ('livedraw', 'Live draw · Direct3D 12')] if WINDOWS else
+             [('rpcs3-vulkan', 'RPCS3 · Vulkan'), ('rpcs3-opengl', 'RPCS3 · OpenGL')])
 RENDER_SCALES = [('100', '100% · 1280 x 720 (original)'), ('150', '150% · 1920 x 1080'),
                  ('200', '200% · 2560 x 1440'), ('300', '300% · 3840 x 2160')]
 ASPECTS = [('keep', 'Manter 16:9 (barras pretas)'), ('stretch', 'Esticar para a janela')]
-SCALE_FILTERS = [('linear', 'Suave (bilinear)'), ('nearest', 'Nítido (pixel)')] + \
-    ([('fsr', 'AMD FSR 1 (RPCS3)')] if WINDOWS else [])
+SCALE_FILTERS = [('linear', 'Suave (bilinear)'), ('nearest', 'Nítido (pixel)'),
+                 ('fsr', 'AMD FSR 1 (RPCS3)')]
 VSYNC_MODES = [('auto', 'Automático (o do renderizador)'), ('1', 'Ligado'), ('0', 'Desligado')]
 ANISO_LEVELS = [('0', 'O do jogo'), ('2', '2x'), ('4', '4x'), ('8', '8x'), ('16', '16x')]
 
@@ -140,7 +164,7 @@ def key_label(name):
     return KEY_LABELS.get(name, name) if name else '—'
 
 
-GAME_EXE = ROOT / 'build' / 'win' / 'AscensionRecomp.exe' if WINDOWS else ROOT / 'build' / 'AscensionRecomp'
+GAME_EXE = ROOT / 'build' / 'win' / 'AscensionRecomp.exe' if WINDOWS else ROOT / 'build' / 'mac' / 'AscensionRecomp'
 # On macOS the disc stays an .iso, mounted read-only at work/disc when the game
 # starts; the decrypted EBOOT.ELF sits in ascension/input/.
 EBOOT = (WORK / 'disc' / 'PS3_GAME' / 'USRDIR' / 'EBOOT.ELF') if WINDOWS else ROOT / 'input' / 'EBOOT.ELF'
@@ -393,6 +417,14 @@ def game_environment(s):
     if s['renderer'].startswith('rpcs3'):
         env['PS3_RSX'] = 'rpcs3'
         env['PS3_RSX_RENDERER'] = 'opengl' if s['renderer'] == 'rpcs3-opengl' else 'vulkan'
+        if MAC and s['renderer'] == 'rpcs3-vulkan':
+            icd = next((p for p in (
+                '/opt/homebrew/opt/molten-vk/etc/vulkan/icd.d/MoltenVK_icd.json',
+                '/usr/local/opt/molten-vk/etc/vulkan/icd.d/MoltenVK_icd.json') if Path(p).is_file()), None)
+            if icd and not env.get('VK_ICD_FILENAMES'):
+                env['VK_ICD_FILENAMES'] = icd
+            lib = '/opt/homebrew/lib' if Path('/opt/homebrew/lib').is_dir() else '/usr/local/lib'
+            env['DYLD_FALLBACK_LIBRARY_PATH'] = lib + os.pathsep + env.get('DYLD_FALLBACK_LIBRARY_PATH', '')
     env['PS3_RENDER_SCALE'] = s['render_scale']
     env['PS3_ASPECT'] = s['aspect']
     env['PS3_SCALE_FILTER'] = s['scale_filter']
@@ -408,6 +440,12 @@ def game_environment(s):
     root = disc_root(s)
     if root:
         env['PS3_VFS_ROOT'] = str(root)
+    # The disc image is mounted read-only, so it reports no free space and the
+    # game exits with NOSPACE. Saves and the cache live beside the disc.
+    for key, folder in (('PS3_HDD0_ROOT', ROOT / 'gamedata' / 'dev_hdd0'),
+                        ('PS3_HDD1_ROOT', ROOT / 'gamedata' / 'dev_hdd1')):
+        folder.mkdir(parents=True, exist_ok=True)
+        env[key] = str(folder)
     mods = compose_mods(s)
     if mods:
         env['PS3_MODS'] = ';'.join(mods)
@@ -497,44 +535,105 @@ def start_game(s, log_path, parent=None):
 
 class Music:
     """music.mp3 on a loop, with no extra packages: Windows' MCI, or on macOS
-    afplay (paused by stopping the process)."""
+    /usr/bin/afplay. Pausing stops the player; playing starts the track again.
+    SIGSTOP does not resume afplay's audio queue, so it is not used."""
     def __init__(self):
         self.ok = False
+        self.error = ''
         self.path = path = asset('music.mp3')
         self.proc = self.thread = None
         self.closed = False
+        self.want = False
+        self._converted = False
+        self._lock = threading.Lock()
+        self.player = '/usr/bin/afplay' if Path('/usr/bin/afplay').is_file() else shutil.which('afplay')
         if WINDOWS and path:
             self.mci = ctypes.windll.winmm.mciSendStringW
             self.ok = self.send(f'open "{path}" type mpegvideo alias bgm') == 0
             if self.ok:
                 self.send('setaudio bgm volume to 350')
-        elif MAC and path and shutil.which('afplay'):
+            elif not self.ok:
+                self.error = 'não abriu music.mp3'
+        elif MAC and path and self.player:
             self.ok = True
+        elif MAC and not path:
+            self.error = 'sem music.mp3'
+        elif MAC:
+            self.error = 'afplay não encontrado'
 
     def send(self, cmd):
         return self.mci(cmd, None, 0, None)
 
-    def signal(self, sig):
-        if self.proc and self.proc.poll() is None:
+    def _stop_proc(self):
+        with self._lock:
+            proc = self.proc
+        if proc and proc.poll() is None:
             try:
-                os.kill(self.proc.pid, sig)
+                proc.terminate()
             except OSError:
                 pass
 
+    def _convert_once(self):
+        """afplay rejects some MP3s ('fmt?'). One conversion to AAC, then retry."""
+        if self._converted:
+            return False
+        self._converted = True
+        afconvert = '/usr/bin/afconvert'
+        if not Path(afconvert).is_file():
+            return False
+        out = Path(tempfile.gettempdir()) / 'ascension-launcher-music.m4a'
+        try:
+            r = subprocess.run([afconvert, '-f', 'm4af', '-d', 'aac', str(self.path), str(out)],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        except OSError:
+            return False
+        if r.returncode == 0 and out.is_file():
+            self.path = out
+            return True
+        return False
+
     def loop(self):
+        fails = 0
         while not self.closed:
-            self.proc = subprocess.Popen(['afplay', '-v', '0.35', str(self.path)],
-                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self.proc.wait()
+            if not self.want:
+                time.sleep(0.05)
+                continue
+            started = time.monotonic()
+            try:
+                proc = subprocess.Popen([self.player, '-v', '0.35', str(self.path)],
+                                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                        stderr=subprocess.PIPE, start_new_session=True)
+            except OSError as e:
+                self.error = str(e)[:80]
+                self.want = False
+                return
+            with self._lock:
+                self.proc = proc
+            err = proc.stderr.read() if proc.stderr else b''
+            code = proc.wait()
+            if self.closed or not self.want or code in (0, -15, 143, -9, 137):
+                if code == 0:
+                    fails = 0
+                continue
+            if time.monotonic() - started < 0.4:
+                fails += 1
+                if fails == 1 and self._convert_once():
+                    continue
+                text = err.decode('utf-8', 'replace').strip()
+                self.error = (text or f'afplay saiu com código {code}')[:80]
+                self.want = False
+                return
+            time.sleep(0.2)
 
     def play(self):
         if not self.ok:
             return
+        self.error = ''
         if WINDOWS:
             self.send('play bgm repeat')
-        elif self.thread:
-            self.signal(signal.SIGCONT)
-        else:
+            return
+        self.want = True
+        if not self.thread:
             self.thread = threading.Thread(target=self.loop, daemon=True)
             self.thread.start()
 
@@ -544,7 +643,8 @@ class Music:
         if WINDOWS:
             self.send('pause bgm')
         else:
-            self.signal(signal.SIGSTOP)
+            self.want = False
+            self._stop_proc()
 
     def close(self):
         if not self.ok:
@@ -553,8 +653,8 @@ class Music:
             self.send('close bgm')
         else:
             self.closed = True
-            self.signal(signal.SIGCONT)
-            self.signal(signal.SIGTERM)
+            self.want = False
+            self._stop_proc()
 
 
 def register_font(path):
@@ -627,12 +727,13 @@ class Launcher:
         self.bg_sources = [p for p in (asset(n) for n in BACKGROUNDS) if p]
         self.bg_index, self.bg_cache, self.bg_size = 0, {}, None
         self.logo_src = asset('logo.png')
-        self.build()
-        self.show('home')
-        self.saved = self.gather()
         self.music = Music() if not SHOT else Music.__new__(Music)
         if SHOT:
             self.music.ok = False
+            self.music.error = ''
+        self.build()
+        self.show('home')
+        self.saved = self.gather()
         if self.s.get('music') == '1':
             self.music.play()
         root.protocol('WM_DELETE_WINDOW', self.close)
@@ -943,17 +1044,19 @@ class Launcher:
         f = self.page('video', 'Vídeo', 'Renderizador, janela e imagem do jogo.')
         rpcs3 = 'Só com o renderizador RPCS3.'
         self.section(f, 'Renderizador')
-        if WINDOWS:
-            self.row(f, 'Renderizador', self.choice(f, 'renderer', RENDERERS),
-                     'RPCS3: o renderizador do RPCS3 (pede o jogo compilado com -DASCENSION_RPCS3_RSX=ON). '
-                     'Live draw: o desenho próprio do ps3recomp.')
-            self.row(f, 'Resolução interna', self.choice(f, 'render_scale', RENDER_SCALES),
-                     'O jogo desenha em 1280 x 720; acima disso fica mais nítido e pesa mais na GPU. ' + rpcs3)
-            self.row(f, 'Filtro anisotrópico', self.choice(f, 'aniso', ANISO_LEVELS),
-                     'Texturas vistas de lado mais nítidas. ' + rpcs3)
+        if MAC:
+            hint = ('RPCS3 · Vulkan usa o MoltenVK (o jogo precisa de RPCS3=1 scripts/mac/build.sh, '
+                    'depois de scripts/mac/build-gpu.sh). Live draw desenha com Metal.')
+        elif WINDOWS:
+            hint = ('RPCS3: o renderizador do RPCS3 (pede o jogo compilado com -DASCENSION_RPCS3_RSX=ON). '
+                    'Live draw: o desenho próprio do ps3recomp.')
         else:
-            self.row(f, 'Renderizador', self.choice(f, 'renderer', RENDERERS),
-                     'No macOS o jogo desenha com Metal.')
+            hint = 'RPCS3: Vulkan ou OpenGL (o jogo compilado com -DASCENSION_RPCS3_RSX=ON).'
+        self.row(f, 'Renderizador', self.choice(f, 'renderer', RENDERERS), hint)
+        self.row(f, 'Resolução interna', self.choice(f, 'render_scale', RENDER_SCALES),
+                 'O jogo desenha em 1280 x 720; acima disso fica mais nítido e pesa mais na GPU. ' + rpcs3)
+        self.row(f, 'Filtro anisotrópico', self.choice(f, 'aniso', ANISO_LEVELS),
+                 'Texturas vistas de lado mais nítidas. ' + rpcs3)
         self.section(f, 'Exibição')
         self.row(f, 'Modo de exibição', self.choice(f, 'display_mode', DISPLAY_MODES),
                  'No jogo, ' + ('F11 ou Ctrl+Cmd+F' if MAC else 'F11 ou Alt+Enter') + ' alterna entre janela e tela cheia.')
@@ -1441,6 +1544,7 @@ class Launcher:
         self.save_button.configure(state='normal' if dirty else 'disabled')
         if self.var('music').get() != ('1' if self.music_on() else '0'):
             self.set_music(self.var('music').get() == '1')
+        self.refresh_music_label()
         self.root.after(400, self.watch_changes)
 
     def save(self):
@@ -1473,8 +1577,14 @@ class Launcher:
         self.set_music(not self.music_on())
 
     def refresh_music_label(self):
-        if hasattr(self, 'music_label'):
-            self.music_label.configure(text=('♪ Música: ligada' if self.music_on() else '♪ Música: desligada'))
+        if not hasattr(self, 'music_label'):
+            return
+        err = getattr(getattr(self, 'music', None), 'error', '')
+        if err and self.music_on():
+            text = '♪ Música: ' + err
+        else:
+            text = '♪ Música: ligada' if self.music_on() else '♪ Música: desligada'
+        self.music_label.configure(text=text)
 
     # ---- actions ----------------------------------------------------------------------------
     def log_path(self):
@@ -1520,6 +1630,9 @@ class Launcher:
         root = self.root
         if not WINDOWS:
             root.withdraw()
+            root.update_idletasks()
+            root.update()
+            mac_dock(False)
             return None
         self.prev_geometry, self.prev_minsize = root.geometry(), root.minsize()
         self.side.pack_forget()
@@ -1539,6 +1652,7 @@ class Launcher:
     def leave_game_view(self):
         root = self.root
         if not WINDOWS:
+            mac_dock(True)
             root.deiconify()
             root.lift()
             return

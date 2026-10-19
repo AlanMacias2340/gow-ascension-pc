@@ -1,16 +1,16 @@
 # Re-lift the SPU job modules or the position-independent code fragments.
 #
-#   .\scripts\relift.ps1 jobmods                       # all 15 modules (all of them recompile)
-#   .\scripts\relift.ps1 jobmods -Only e9f3f00d551e    # one module: only it recompiles
-#   .\scripts\relift.ps1 fragments                     # tools\job_fragments.json -> src\spu\pic_*
+#   .\scripts\windows\relift.ps1 jobmods                       # all 15 modules (all of them recompile)
+#   .\scripts\windows\relift.ps1 jobmods -Only e9f3f00d551e    # one module: only it recompiles
+#   .\scripts\windows\relift.ps1 fragments                     # tools\job_fragments.json -> src\spu\pic_*
 #
-# Extra entries per module: tools\jobmods_extra_funcs.json. Run .\scripts\build.ps1 after.
+# Extra entries per module: tools\jobmods_extra_funcs.json. Run .\scripts\windows\build.ps1 after.
 param(
     [Parameter(Mandatory)][ValidateSet("jobmods", "fragments")][string]$What,
     [string]$Only = ""
 )
 
-$Root  = Split-Path -Parent $PSScriptRoot
+$Root  = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $Top   = Split-Path -Parent $Root
 $Tools = Join-Path $Top "ps3recomp\tools"
 $Spu   = Join-Path $Root "src\spu"

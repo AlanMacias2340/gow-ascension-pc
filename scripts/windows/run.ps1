@@ -1,11 +1,11 @@
 # Run the game for a while, with the window visible, and summarise the log.
 #
-#   .\scripts\run.ps1                          # 120 s, no save (first-use menus)
-#   .\scripts\run.ps1 -Save backup -Seconds 90 # work\save-backup in place: straight to the cinematic
-#   .\scripts\run.ps1 -Name cin -Env @{ VDEC_TIMELOG = "1"; PS3_HLE_HIST = "5" }
-#   .\scripts\run.ps1 -Profile -ProfileAt 45   # sample the busiest threads at 45 s
-#   .\scripts\run.ps1 -Seconds 0 -Save keep    # play: runs until you close the window
-#   .\scripts\run.ps1 -Menu -Seconds 60        # straight to the main menu (~15 s)
+#   .\scripts\windows\run.ps1                          # 120 s, no save (first-use menus)
+#   .\scripts\windows\run.ps1 -Save backup -Seconds 90 # work\save-backup in place: straight to the cinematic
+#   .\scripts\windows\run.ps1 -Name cin -Env @{ VDEC_TIMELOG = "1"; PS3_HLE_HIST = "5" }
+#   .\scripts\windows\run.ps1 -Profile -ProfileAt 45   # sample the busiest threads at 45 s
+#   .\scripts\windows\run.ps1 -Seconds 0 -Save keep    # play: runs until you close the window
+#   .\scripts\windows\run.ps1 -Menu -Seconds 60        # straight to the main menu (~15 s)
 #
 # -Save fresh  : move the current save aside (work\save-moved\<time>) so the
 #                first-use config menus show up (the default)
@@ -31,7 +31,7 @@ param(
     [int]$CaptureAt = 0                 # press F12 (frame capture into captures\) at this second
 )
 
-$Root    = Split-Path -Parent $PSScriptRoot
+$Root    = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $Work    = Join-Path (Split-Path -Parent $Root) "work"
 $Exe     = Join-Path $Root "build\win\AscensionRecomp.exe"
 $Elf     = Join-Path $Work "disc\PS3_GAME\USRDIR\EBOOT.ELF"

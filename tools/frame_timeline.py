@@ -2,7 +2,7 @@
 
 usage: python tools/frame_timeline.py build/logs/<run>.log [--frames 200] [--show 3]
 
-Run the game with (scripts/run.ps1 -Env @{...}):
+Run the game with (scripts/windows/run.ps1 -Env @{...}):
     SPU_ATOM_EA=99AA80 SPU_ATOM_EA_MAX=1 PPU_WWATCH=99AA80 PPU_WWATCH_LEN=0x80
     PPU_WWATCH_MAX=300000 GCM_REPORTLOG=1000000   [VDEC_TIMELOG=1] [SPU_TASK_TIMELOG=1]
 The 128-byte line at 0x99AA80 holds the frame's dependency counters

@@ -43,7 +43,7 @@ Ainda não há release. O andamento detalhado está em [docs/STATUS.md](docs/STA
 Com o jogo compilado (abaixo), abra o launcher:
 
 ```powershell
-.\scripts\launcher.ps1
+.\scripts\windows\launcher.ps1
 ```
 
 <p align="center"><img src="docs/images/launcher-home.jpg" alt="O launcher do Ascension" width="760"></p>
@@ -68,7 +68,7 @@ ascension-recomp/
 
 1. **Disco:** extraia a sua imagem em `work/disc` e decripte `PS3_GAME/USRDIR/EBOOT.BIN` para `EBOOT.ELF` (com o RPCS3, ou `tools/decrypt_self.py` e o seu arquivo de chaves).
 2. **Tradução:** gere o código com o pipeline do ps3recomp. Os comandos exatos estão em [docs/STATUS.md](docs/STATUS.md#how-it-is-built).
-3. **Build:** CMake e Ninja; no Windows com o Visual Studio 2022 (clang-cl) e `.\scripts\build.ps1`, no macOS com o Apple clang. Um build do zero leva de 20 a 40 minutos e pede 16 GB de memória.
+3. **Build:** CMake e Ninja; no Windows com o Visual Studio 2022 (clang-cl) e `.\scripts\windows\build.ps1`, no macOS com o Apple clang e `scripts/mac/build.sh`. Um build do zero leva de 20 a 40 minutos e pede 16 GB de memória.
 
 Os saves ficam em `gamedata/dev_hdd0`.
 
