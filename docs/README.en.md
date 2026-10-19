@@ -61,7 +61,7 @@ Keyboard: arrows (d-pad), Z/X/A/S (cross, circle, square, triangle), Q/W (L1/R1)
 
 ```
 ascension-recomp/
-  ps3recomp/    https://github.com/arnaldolima1/ps3recomp, branch ascension-v0.15
+  ps3recomp/    https://github.com/sp00nznet/ps3recomp, with this project's changes (patches/)
   ascension/    this repository
   work/         your disc and what is made from it (never committed)
 ```

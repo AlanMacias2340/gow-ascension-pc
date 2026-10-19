@@ -60,7 +60,7 @@ JOGAR abre o jogo dentro da própria janela do launcher.
 
 ```
 ascension-recomp/
-  ps3recomp/    https://github.com/arnaldolima1/ps3recomp, branch ascension-v0.15
+  ps3recomp/    https://github.com/sp00nznet/ps3recomp, com as mudanças deste projeto (patches/)
   ascension/    este repositório
   work/         o seu disco e o que sai dele (nunca vai para o git)
 ```

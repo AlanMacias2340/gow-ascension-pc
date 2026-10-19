@@ -1517,8 +1517,7 @@ class Launcher:
         for title, url in (('Este projeto', 'https://github.com/arnaldolima1/gow-ascension-pc'),
                            ('Andamento (STATUS)', 'https://github.com/arnaldolima1/gow-ascension-pc/blob/main/docs/STATUS.md'),
                            ('Marcos', 'https://github.com/arnaldolima1/gow-ascension-pc/blob/main/docs/MILESTONES.md'),
-                           ('ps3kit (fork do ps3recomp usado)', 'https://github.com/arnaldolima1/ps3kit'),
-                           ('ps3recomp (original, sp00nznet)', 'https://github.com/sp00nznet/ps3recomp')):
+                           ('ps3recomp (sp00nznet)', 'https://github.com/sp00nznet/ps3recomp')):
             link = self.tk.Label(f, text=url, bg=PANEL, fg=GOLD, cursor='hand2', font=(self.ui, 10, 'underline'))
             link.bind('<Button-1>', lambda _e, u=url: webbrowser.open(u))
             self.row(f, title, link)
