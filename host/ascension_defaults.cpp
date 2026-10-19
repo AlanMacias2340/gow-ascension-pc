@@ -46,6 +46,13 @@
 //                      tasks' barriers (the Mac never reached the loading
 //                      screen). It waits on the game's own progress, not on
 //                      a clock.
+//   GCM_ROUND_RING     RsxSync's ring of 27 frame reports (0x1101ED10): only
+//                      those are watched. Another job polls reports at
+//                      0x1124xxxx/0x1126xxxx without reading them again, and
+//                      the gate waited a second for each. RsxSync reads its
+//                      reports in order, so the one after the last it read is
+//                      awaited even before it polls it (on Windows the RSX
+//                      wrote it while RsxSync still acted on the one before).
 //   SPURS_READY_LEVEL  readyCount is a level, as the real kernel treats it.
 //                      The Wws job managers zero their own count once their
 //                      jobs are stored; consuming it per admission left
@@ -110,6 +117,7 @@ struct AscensionDefaults {
         set_default("GCM_PARK_SPU_HOLD_MS", "1000");
         set_default("GCM_REPORT_SPU_HOLD_MS", "50");
         set_default("GCM_ROUND_GATE", "9BAC30");
+        set_default("GCM_ROUND_RING", "1101ED10,27");
         set_default("SPURS_READY_LEVEL", "1");
         set_default("SPURS_MAXCONT", "3=5,15=5,16=5,17=5");
         set_default("SPU_REJOIN", "204:9700-1C000");
