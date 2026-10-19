@@ -217,10 +217,19 @@ if(SPU_SOURCES)
             # every a*b+c in the helpers' scalar paths, which the SPU rounds twice.
             set(SPU_FMA_FLAG ";-mfma;-ffp-contract=off")
         endif()
-        if(PORT_HAS_MSSE41)
-            set_source_files_properties(${SPU_SOURCES} PROPERTIES COMPILE_OPTIONS "-O2;-msse4.1${SPU_FMA_FLAG};${SPU_ROUNDING_MATH}")
+        # No warnings for generated SPU code: with registers promoted to locals
+        # (SPU_LIFT_PROMOTE) a line flushes dozens of them, every warning
+        # reprints its line, and the gigabytes of text stalled ninja for an
+        # hour with the compilers idle.
+        if(MSVC)
+            set(SPU_NOWARN "/w")
         else()
-            set_source_files_properties(${SPU_SOURCES} PROPERTIES COMPILE_OPTIONS "-O2;${SPU_ROUNDING_MATH}")
+            set(SPU_NOWARN "-w")
+        endif()
+        if(PORT_HAS_MSSE41)
+            set_source_files_properties(${SPU_SOURCES} PROPERTIES COMPILE_OPTIONS "-O2;-msse4.1${SPU_FMA_FLAG};${SPU_ROUNDING_MATH};${SPU_NOWARN}")
+        else()
+            set_source_files_properties(${SPU_SOURCES} PROPERTIES COMPILE_OPTIONS "-O2;${SPU_ROUNDING_MATH};${SPU_NOWARN}")
         endif()
     endif()
 endif()
