@@ -6,7 +6,8 @@
 set -e
 here=$(cd "$(dirname "$0")/../.." && pwd)   # ascension/
 top=$(cd "$here/.." && pwd)
-gpu="$top/ps3recomp/gpu"
+kit=ps3kit; [ -d "$top/$kit" ] || kit=ps3recomp   # the toolkit beside this repo
+gpu="$top/$kit/gpu"
 build="$top/work/gpu-build"
 logs="$here/build/logs"
 mkdir -p "$logs"

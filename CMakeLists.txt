@@ -33,8 +33,13 @@ endif()
 #         -DRECOMP_DIR=/path/to/my_game/recompiled
 #
 if(NOT DEFINED PS3RECOMP_DIR)
-    # Default: ps3recomp checked out beside this repository.
-    get_filename_component(PS3RECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ps3recomp" ABSOLUTE)
+    # Default: the toolkit checked out beside this repository, as ps3kit (the
+    # fork's current name) or ps3recomp.
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../ps3kit/CMakeLists.txt")
+        get_filename_component(PS3RECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ps3kit" ABSOLUTE)
+    else()
+        get_filename_component(PS3RECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ps3recomp" ABSOLUTE)
+    endif()
 endif()
 get_filename_component(PS3RECOMP_DIR "${PS3RECOMP_DIR}" ABSOLUTE)
 

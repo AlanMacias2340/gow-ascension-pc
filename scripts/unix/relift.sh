@@ -15,7 +15,8 @@
 set -e
 here=$(cd "$(dirname "$0")/../.." && pwd)
 top=$(cd "$here/.." && pwd)
-tools="$top/ps3recomp/tools"
+kit=ps3kit; [ -d "$top/$kit" ] || kit=ps3recomp   # the toolkit beside this repo
+tools="$top/$kit/tools"
 spu="$here/src/spu"
 elf=${EBOOT_ELF:-$here/input/EBOOT.ELF}
 if [ -z "$PYTHON" ]; then

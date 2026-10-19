@@ -12,7 +12,8 @@ param(
 
 $Root  = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $Top   = Split-Path -Parent $Root
-$Tools = Join-Path $Top "ps3recomp\tools"
+$Kit   = if (Test-Path (Join-Path $Top "ps3kit")) { "ps3kit" } else { "ps3recomp" }   # the toolkit beside this repo
+$Tools = Join-Path $Top "$Kit\tools"
 $Spu   = Join-Path $Root "src\spu"
 $Log   = Join-Path $Root "build\logs\relift-$What.log"
 
