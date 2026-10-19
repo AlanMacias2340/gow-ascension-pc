@@ -36,6 +36,16 @@
 //                      RsxSync before the tasks had started the round, its
 //                      signal was eaten by their barriers, and the game
 //                      stopped at the end of loading every time.
+//   GCM_ROUND_GATE     with RPCS3's RSX, the placeholder report after each
+//                      frame report waits until RsxSync has read every frame
+//                      report it was polling and the post-process round in
+//                      its descriptor (0x9BAC30) has written its label. A
+//                      PS3's RSX takes a frame's time, so a round always ends
+//                      before the next one is signalled; a recompiled one
+//                      does not, and the next round's signal was lost in the
+//                      tasks' barriers (the Mac never reached the loading
+//                      screen). It waits on the game's own progress, not on
+//                      a clock.
 //   SPURS_READY_LEVEL  readyCount is a level, as the real kernel treats it.
 //                      The Wws job managers zero their own count once their
 //                      jobs are stored; consuming it per admission left
@@ -99,6 +109,7 @@ struct AscensionDefaults {
         set_default("GCM_SEMA_ACQUIRE", "1");
         set_default("GCM_PARK_SPU_HOLD_MS", "1000");
         set_default("GCM_REPORT_SPU_HOLD_MS", "50");
+        set_default("GCM_ROUND_GATE", "9BAC30");
         set_default("SPURS_READY_LEVEL", "1");
         set_default("SPURS_MAXCONT", "3=5,15=5,16=5,17=5");
         set_default("SPU_REJOIN", "204:9700-1C000");
