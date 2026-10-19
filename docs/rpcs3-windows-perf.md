@@ -2,7 +2,19 @@
 
 19/10/2026, à tarde, no Windows (Ryzen 7 5700G, RX 7600), depois do trabalho da manhã no Mac ([mac-loading.md](mac-loading.md)). Commits: ps3recomp `ascension-v2`, ascension `v2`.
 
-## Onde parou
+## Atualização (19/10/2026, noite): 12,5 → 28,5 fps
+
+**Causa real da lentidão:** o cache de texturas do RPCS3 protege com `PAGE_NOACCESS` as superfícies que a GPU desenhou (para copiá-las de volta quando alguém lê). A checagem de DMA da SPU (`mfc_ea_range_committed`, `ps3kit/runtime/spu/spu_dma.h`) tomava essas páginas por memória não alocada. Resultado: **todo DMA das tarefas de pós-processamento para os render targets era descartado**, ~50 mil por segundo, cada um com um `VirtualQuery`. As tarefas trabalhavam sobre dados velhos e cada rodada levava ~60 ms.
+
+**Correção** (ps3kit `34a100d`): `g_vm_protected_page_hook` (o `ps3rsx_handle_fault`, ligado pelo `boot_main` com `PS3_RSX=rpcs3`) libera cada página de 4 KB do intervalo, como o handler de exceções faz para um acesso da CPU, e o DMA é feito.
+
+**Resultado no menu:** 28,5 fps (era 12,5), Speed 95%, frame de 35 ms, rodada de ~17 ms (era ~60), nenhum DMA recusado. O brilho âmbar das lajes ficou mais forte, porque o pós-processamento agora recebe a imagem certa.
+
+A otimização do FMA (abaixo) foi medida: **sem ganho visível** (12,3 → 12,5 fps). Fica, porque está correta.
+
+**Próximo:** o Hold ainda está em ~500 ms/s (o RSX ainda espera metade do tempo pela rodada), e falta medir o primeiro nível com o RSX do RPCS3. Se um DMA voltar a ser recusado, o log mostra `[spu-dma] SKIP`.
+
+## Onde parou (antes da atualização)
 
 - O menu roda com o RSX do RPCS3 (Vulkan) **sem travar**: 10 execuções de 25 a 60 s, nenhum timeout de semáforo.
 - O **overlay de desempenho** é o do RPCS3, no estilo do launcher (Cinzel, nomes dourados, painel translúcido, valores em verde/amarelo/vermelho).
