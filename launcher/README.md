@@ -1,6 +1,6 @@
 # Launcher
 
-`ascension_launcher.py` (Python 3 with Tk, and Pillow) sets up the game and starts it. Open it with `scripts\windows\launcher.ps1`, `scripts/mac/launcher.sh` or `scripts/linux/launcher.sh`, or `python launcher/ascension_launcher.py`; `--play` starts the game with the saved settings and no window.
+`ascension_launcher.py` (Python 3 with Tk, and Pillow) sets up the game and starts it. Open it with `scripts\windows\launcher.ps1`, `scripts/mac/launcher.sh` or `scripts/linux/launcher.sh`, or `python launcher/ascension_launcher.py`; `--play` starts the game with the saved settings and no window. The code is in `app/`: `config.py` (paths, settings, the pages' choices), `game.py` (disc, mods, saves, environment), `music.py`, `native.py` (macOS Dock, fonts) and `ui.py` (the window).
 
 On macOS (paused, like the rest of the macOS support): `brew install python@3.12 python-tk@3.12`, a venv with `pip install pillow`, then `scripts/mac/launcher.sh`. The game opens a window of its own (the launcher hides until it closes), the disc `.iso` set in Advanced is mounted read-only at `work/disc` when needed, the executable is `build/mac/AscensionRecomp` (`scripts/mac/build.sh`) and the `EBOOT.ELF` is read from `input/`. Music plays through `/usr/bin/afplay`.
 
