@@ -14,6 +14,7 @@ import ctypes
 import json
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import threading
@@ -336,6 +337,42 @@ def disc_usrdir(s):
     return root / 'PS3_GAME' / 'USRDIR' if root else Path(s['eboot']).parent
 
 
+GAME_ID = 'BCES01741'
+
+
+def read_sfo(path):
+    """A PARAM.SFO's entries: {key: text or number}."""
+    data = Path(path).read_bytes()
+    if data[:4] != b'\0PSF':
+        raise ValueError('not a PARAM.SFO')
+    keys, values, count = struct.unpack_from('<III', data, 8)
+    out = {}
+    for i in range(count):
+        koff, fmt, length, _cap, voff = struct.unpack_from('<HHIII', data, 20 + 16 * i)
+        key = data[keys + koff:data.index(b'\0', keys + koff)].decode('ascii', 'replace')
+        raw = data[values + voff:values + voff + length]
+        out[key] = int.from_bytes(raw[:4], 'little') if fmt == 0x0404 else raw.rstrip(b'\0').decode('utf-8', 'replace')
+    return out
+
+
+def disc_problem(s):
+    """Why the disc found is not the one the game was built from, or None
+    (also when there is no disc to look at yet)."""
+    root = disc_root(s)
+    sfo = (root / 'PS3_GAME' if root else Path(s['eboot']).parent.parent) / 'PARAM.SFO'
+    if not sfo.is_file():
+        return None
+    try:
+        info = read_sfo(sfo)
+    except (OSError, ValueError, struct.error):
+        return f'o PARAM.SFO do disco não pôde ser lido ({sfo})'
+    title = str(info.get('TITLE_ID', ''))
+    if title != GAME_ID:
+        name = str(info.get('TITLE', '')).replace('\n', ' ')
+        return f'o disco é {title or "?"}{" (" + name + ")" if name else ""}, não a versão europeia {GAME_ID}'
+    return None
+
+
 def ensure_disc(s):
     """macOS: mount the .iso read-only at the disc folder if it is not there yet.
     Returns the folder when this call mounted it (release_disc undoes that)."""
@@ -359,7 +396,24 @@ def release_disc(root):
         subprocess.run(['hdiutil', 'detach', str(root)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+MODS_LOCK = threading.Lock()     # PLAY and the build after Salvar write the same archives
+
+
 def compose_mods(s, log=lambda m: None):
+    with MODS_LOCK:
+        return _compose_mods(s, log)
+
+
+def prebuild_mods(s):
+    """The mods' archives built ahead of PLAY, when the disc is there."""
+    try:
+        if disc_usrdir(s).is_dir():
+            compose_mods(s)
+    except Exception:       # PLAY builds them again and reports what fails
+        pass
+
+
+def _compose_mods(s, log):
     """The folders for PS3_MODS: first the archives the launcher builds from
     the enabled mods' recipes ("psarc_patches" in mod.json, applied to the
     copy of that archive the highest-priority mod ships, or to the disc's),
@@ -530,6 +584,24 @@ def backup_saves():
     return dst
 
 
+def backup_list():
+    """The save backups, newest first."""
+    folder = ROOT / 'gamedata' / 'save-backups'
+    return sorted((d for d in folder.iterdir() if d.is_dir()), reverse=True) if folder.is_dir() else []
+
+
+def restore_saves(backup):
+    """The saves as they were in `backup`. The current ones are backed up
+    first; the copy is taken before that, since it can drop the oldest."""
+    dst = save_dir()
+    tmp = dst.with_name('savedata.restoring')
+    shutil.rmtree(tmp, ignore_errors=True)
+    shutil.copytree(backup, tmp)
+    backup_saves()
+    shutil.rmtree(dst, ignore_errors=True)
+    tmp.rename(dst)
+
+
 def missing(s):
     out = []
     if not Path(s['game_exe']).is_file():
@@ -548,6 +620,10 @@ def prepare_game(s, status=lambda m: None):
     folder it mounted, if any."""
     status('Preparando o jogo…')
     mounted = ensure_disc(s)
+    problem = disc_problem(s)
+    if problem:
+        release_disc(mounted)
+        raise OSError(problem[0].upper() + problem[1:] + '.')
     if s.get('backup_saves') == '1':
         status('Copiando os saves…')
         backup_saves()
@@ -969,12 +1045,15 @@ class Launcher:
         self.build_about()
         self.refresh_choices('language', '7')   # PT-BR only while its mod is on
         self.root.bind_all('<MouseWheel>', self.wheel)
+        if not (WINDOWS or MAC) and self.tk.TkVersion < 8.7:   # X11 before Tk 8.7: the wheel is buttons 4 and 5
+            self.root.bind_all('<Button-4>', lambda e: self.wheel(e, -1))
+            self.root.bind_all('<Button-5>', lambda e: self.wheel(e, 1))
         self.refresh_status()
 
-    def wheel(self, event):
+    def wheel(self, event, units=None):
         page = self.pages.get(self.current)
         if hasattr(page, 'scroll') and 'combobox' not in str(event.widget).lower():
-            page.scroll(-event.delta if MAC else int(-event.delta / 120))
+            page.scroll(units if units is not None else -event.delta if MAC else int(-event.delta / 120))
 
     def show(self, name):
         self.cancel_capture()
@@ -986,6 +1065,8 @@ class Launcher:
             item.configure(bg=PANEL if n == name else BG, fg=GOLD if n == name else TEXT)
         if name == 'mods':
             self.refresh_mods()
+        elif name == 'game':
+            self.refresh_backups()
 
     # ---- home: backgrounds that cross-fade, the logo, quick settings --------------------------
     def build_home(self):
@@ -1378,6 +1459,42 @@ class Launcher:
         self.ttk.Button(holder, text='Abrir backups', command=lambda: self.open_path(ROOT / 'gamedata' / 'save-backups')).pack(
             side='left', padx=(8, 0))
         self.row(f, '', holder)
+        holder = self.ttk.Frame(f)
+        self.backup_box = self.ttk.Combobox(holder, state='readonly', width=30)
+        self.backup_box.bind('<MouseWheel>', lambda e: 'break')
+        self.backup_box.pack(side='left')
+        self.restore_button = self.ttk.Button(holder, text='Restaurar', command=self.restore_backup)
+        self.restore_button.pack(side='left', padx=(8, 0))
+        self.row(f, 'Restaurar um backup', holder, 'Os saves atuais viram um backup antes, então nada se perde.')
+        self.refresh_backups()
+
+    def refresh_backups(self):
+        self.backups = backup_list()
+        labels = []
+        for d in self.backups:
+            try:
+                labels.append(time.strftime('%d/%m/%Y  %H:%M:%S', time.strptime(d.name, '%Y%m%d-%H%M%S')))
+            except ValueError:
+                labels.append(d.name)
+        self.backup_box.configure(values=labels)
+        self.backup_box.set(labels[0] if labels else 'Nenhum backup')
+        busy = self.process or self.preparing or not labels
+        self.restore_button.configure(state='disabled' if busy else 'normal')
+
+    def restore_backup(self):
+        i = self.backup_box.current()
+        if i < 0 or self.process or self.preparing:
+            return
+        label = self.backup_box.get()
+        if not self.messagebox.askyesno(APP_NAME, f'Voltar os saves para {label}?'):
+            return
+        try:
+            restore_saves(self.backups[i])
+        except OSError as e:
+            self.messagebox.showerror(APP_NAME, f'Não consegui restaurar:\n{e}')
+            return
+        self.refresh_backups()
+        self.refresh_status(f'Saves restaurados de {label}.')
 
     def build_mods(self):
         f = self.page('mods', 'Mods', 'Ligue, desligue e ordene. O primeiro da lista vence quando dois mexem no mesmo arquivo.')
@@ -1610,11 +1727,13 @@ class Launcher:
         self.saved = self.gather()
         self.save_button.configure(state='disabled')
         self.refresh_status('Configurações salvas.')
+        threading.Thread(target=prebuild_mods, args=(dict(self.s),), daemon=True).start()
 
     def refresh_status(self, text=None):
         if text is None:
-            gone = missing({**self.s, **self.gather()})
-            text = ('Falta ' + ' e '.join(gone)) if gone else 'Pronto para jogar.'
+            s = {**self.s, **self.gather()}
+            gone, problem = missing(s), disc_problem(s)
+            text = ('Falta ' + ' e '.join(gone)) if gone else ('Atenção: ' + problem + '.') if problem else 'Pronto para jogar.'
         self.status.configure(text=text)
 
     # ---- music ------------------------------------------------------------------------------
@@ -1670,6 +1789,10 @@ class Launcher:
         if gone:
             self.messagebox.showerror(APP_NAME, 'Não encontrei ' + ' e '.join(gone) + '.\nAjuste em Avançado.')
             return
+        problem = disc_problem(self.s)
+        if problem:
+            self.messagebox.showerror(APP_NAME, 'Este jogo foi compilado da versão europeia, mas ' + problem + '.')
+            return
         self.preparing = True
         self.play_button.configure(state='disabled')
         s = dict(self.s)
@@ -1694,6 +1817,7 @@ class Launcher:
             return
         self.preparing = False
         self.music.pause()
+        self.refresh_backups()
         self.refresh_status('Jogo em execução…')
         threading.Thread(target=self.wait_game, daemon=True).start()
 
@@ -1765,6 +1889,7 @@ class Launcher:
         self.process = None
         self.play_button.configure(state='normal')
         self.leave_game_view()
+        self.refresh_backups()
         if self.music_on():
             self.music.play()
         if code == 0:

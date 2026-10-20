@@ -36,7 +36,7 @@ Mods come from two places, listed together in one priority order (first wins): `
 
 Brazilian Portuguese needs the PT-BR mod, which the Mods page builds from your own US disc (an `.iso` or its extracted folder) with `tools/make_ptbr_mod.py`; with it on, the language list offers Português (Brasil).
 
-Saves are copied to `gamedata\save-backups\` before each start, unless the newest copy already matches them (the last ten are kept). The run's output goes to `build\logs\last_run.log`, the run before it to `last_run.prev.log`; when the game ends with an error the launcher offers to open the log. PLAY prepares the disc, saves and mods in the background, with each step in the status bar; on macOS the `.iso` the launcher mounted is unmounted when it closes.
+Saves are copied to `gamedata\save-backups\` before each start, unless the newest copy already matches them (the last ten are kept). The Game page restores any of them (the current saves become a backup first). The run's output goes to `build\logs\last_run.log`, the run before it to `last_run.prev.log`; when the game ends with an error the launcher offers to open the log. PLAY prepares the disc, saves and mods in the background, with each step in the status bar, and refuses a disc whose `PARAM.SFO` is not `BCES01741`. Saving the settings also builds the mods' archives ahead of time when the disc is there; on macOS the `.iso` the launcher mounted is unmounted when it closes.
 
 The artwork and music are not in the repository. The launcher reads `background*.jpg/png`, `logo.png`, `icon-2.png` and `music.mp3` from `launcher\assets\` or `..\work\data\launcher\`; without them it still works, plainer. `Cinzel-Black.ttf` is the Cinzel typeface (SIL Open Font License, `OFL-Cinzel.txt`).
 
