@@ -167,13 +167,13 @@ class Launcher:
     def page(self, name, title, subtitle):
         tk, ttk = self.tk, self.ttk
         outer = tk.Frame(self.content, bg=PANEL)
-        canvas = tk.Canvas(outer, bg=PANEL, highlightthickness=0, bd=0)
+        canvas = tk.Canvas(outer, bg=PANEL, highlightthickness=0, bd=0, yscrollincrement=1)   # scroll in pixels
         inner = ttk.Frame(canvas, padding=(34, 26, 34, 26))
         inner.bind('<Configure>', lambda _e: canvas.configure(scrollregion=canvas.bbox('all')))
         win = canvas.create_window(0, 0, window=inner, anchor='nw')
         canvas.bind('<Configure>', lambda e: canvas.itemconfigure(win, width=e.width))
         canvas.pack(side='left', fill='both', expand=True)
-        outer.scroll = lambda n: canvas.yview_scroll(n, 'units')
+        outer.scroll = lambda px: canvas.yview_scroll(int(px), 'units')
         ttk.Label(inner, text=title, style='Page.TLabel').grid(row=0, column=0, columnspan=3, sticky='w')
         ttk.Label(inner, text=subtitle, style='Muted.TLabel').grid(row=1, column=0, columnspan=3, sticky='w', pady=(2, 8))
         inner.columnconfigure(2, weight=1)
@@ -273,6 +273,8 @@ class Launcher:
         self.build_about()
         self.refresh_choices('language', '7')   # PT-BR only while its mod is on
         self.root.bind_all('<MouseWheel>', self.wheel)
+        if self.tk.TkVersion >= 8.7:     # trackpads: their own event, in pixels
+            self.root.bind_all('<TouchpadScroll>', self.touchpad)
         if not (WINDOWS or MAC) and self.tk.TkVersion < 8.7:   # X11 before Tk 8.7: the wheel is buttons 4 and 5
             self.root.bind_all('<Button-4>', lambda e: self.wheel(e, -1))
             self.root.bind_all('<Button-5>', lambda e: self.wheel(e, 1))
@@ -281,10 +283,30 @@ class Launcher:
     def fullscreen_keys(self):
         return 'F11 ' + tr('or') + (' Ctrl+Cmd+F' if MAC else ' Alt+Enter')
 
-    def wheel(self, event, units=None):
+    WHEEL_STEP = 40     # pixels per wheel notch
+
+    def page_scroll(self, event):
         page = self.pages.get(self.current)
         if hasattr(page, 'scroll') and 'combobox' not in str(event.widget).lower():
-            page.scroll(units if units is not None else -event.delta if MAC else int(-event.delta / 120))
+            return page.scroll
+        return None
+
+    def wheel(self, event, notches=None):
+        """A wheel notch is 120 from Tk 8.7 on, and on Windows; Tk 8.6 on
+        macOS counts 1 per notch."""
+        scroll = self.page_scroll(event)
+        if not scroll:
+            return
+        if notches is None:
+            notches = -event.delta / 120 if WINDOWS or self.tk.TkVersion >= 8.7 else -event.delta
+        scroll(round(notches * self.WHEEL_STEP))
+
+    def touchpad(self, event):
+        scroll = self.page_scroll(event)
+        if scroll:
+            _dx, dy = (int(v) for v in self.root.tk.splitlist(self.root.tk.call('tk::PreciseScrollDeltas', event.delta)))
+            if dy:
+                scroll(-dy)
 
     def show(self, name):
         self.cancel_capture()
