@@ -1515,7 +1515,6 @@ class Launcher:
                      'funcionam; o menu principal ainda está lento. Veja o andamento no repositório.')
         self.section(f, 'Links')
         for title, url in (('Este projeto', 'https://github.com/arnaldolima1/gow-ascension-pc'),
-                           ('Andamento (STATUS)', 'https://github.com/arnaldolima1/gow-ascension-pc/blob/main/docs/STATUS.md'),
                            ('Marcos', 'https://github.com/arnaldolima1/gow-ascension-pc/blob/main/docs/MILESTONES.md'),
                            ('ps3recomp (sp00nznet)', 'https://github.com/sp00nznet/ps3recomp')):
             link = self.tk.Label(f, text=url, bg=PANEL, fg=GOLD, cursor='hand2', font=(self.ui, 10, 'underline'))

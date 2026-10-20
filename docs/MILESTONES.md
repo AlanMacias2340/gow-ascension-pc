@@ -1,6 +1,6 @@
 # Milestones
 
-What the game could do, and when. The details behind each one are in [STATUS.md](STATUS.md).
+What the game could do, and when.
 
 | Date | Milestone |
 | --- | --- |
@@ -20,3 +20,7 @@ What the game could do, and when. The details behind each one are in [STATUS.md]
 | 2026-10-17 | **A launcher:** video, language, subtitles and mods; the game renders inside its window. |
 | 2026-10-17 | **Main menu 1 -> 12 fps:** the 18 job modules the loading never streams lifted too (33 in all), streamed code found inside bigger GETs and by content. |
 | 2026-10-17 | Brazilian Portuguese (voices from the US disc, text already on the EU disc); mods as recipes, Skip intro included. |
+| 2026-10-18 | **The first level** (Kratos in chains): a lost-task race in the SPURS taskset scheduler fixed; the level loads and runs (~16 fps on live draw). |
+| 2026-10-19 | **RPCS3's RSX as the renderer** (Windows and macOS): the game's GPU/SPU post-process rounds paced on the game's own progress. |
+| 2026-10-19 | Main menu 12 → 28 fps on RPCS3's RSX: SPU transfers into surfaces the GPU protected were being dropped. |
+| 2026-10-19 | **Level textures correct:** IO space handed back on unmap, so the scenery's vertex streams no longer read the command buffer. |

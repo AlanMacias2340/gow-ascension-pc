@@ -6,7 +6,7 @@
 
 **God of War: Ascension (PS3), recompilado para rodar nativamente no PC.**
 
-[![Status](https://img.shields.io/badge/status-experimento-lightgrey)](docs/STATUS.md)
+[![Status](https://img.shields.io/badge/status-experimento-lightgrey)](docs/MILESTONES.md)
 [![Release](https://img.shields.io/badge/release-ainda%20n%C3%A3o-lightgrey)](#onde-estamos)
 [![Windows](https://img.shields.io/badge/Windows-10%2F11%20x64-0078D4)](#compilando)
 [![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-green)](LICENSE)
@@ -20,22 +20,21 @@
 O Ascension traduz o código do jogo, do processador principal (PPU) e dos SPUs do PS3, para C++ e o compila para o seu PC, sobre o runtime do [ps3recomp](https://github.com/sp00nznet/ps3recomp). Não é um emulador: é o próprio jogo, recompilado. É irmão do [Sparta](https://github.com/arnaldolima1/gow-ghost-of-sparta-pc) e do [Olympus](https://github.com/arnaldolima1/gow-chains-of-olympus-pc), que fazem o mesmo com os God of War de PSP.
 
 > [!WARNING]
-> **Um experimento: ainda não dá para jogar do começo ao fim.** O jogo abre, passa pelos menus e toca a cinemática de abertura; o menu principal já aparece, mas ainda lento. Só Windows por enquanto (o suporte ao macOS está pausado).
+> **Um experimento: ainda não dá para jogar do começo ao fim.** O jogo chega ao primeiro nível, mas ainda lento (~9 fps). Só Windows por enquanto (o suporte ao macOS está pausado).
 
 > [!IMPORTANT]
 > **Nenhum dado do jogo está incluído.** Você precisa da sua própria cópia, a **versão europeia `BCES-01741`** (1.00), tirada do seu disco. Ninguém aqui pode te dar o jogo ou chaves. Projeto de fãs, sem ligação com a Sony Interactive Entertainment ou a Santa Monica Studio.
 
 ## Onde estamos
 
-Em outubro de 2026, no Windows:
+Outubro de 2026, no Windows:
 
-- **Abertura e menus:** as telas de abertura, o carregamento e os menus de primeiro uso (idioma, ajuste de imagem, brilho), desenhados pelos shaders do próprio jogo, respondendo ao controle e ao teclado.
-- **Cinemática de abertura** com imagem e som sincronizados, na velocidade certa (30 fps).
-- **Menu principal:** desenha o cenário a cerca de 12 fps (era 1); a imagem ainda tem defeitos. É o próximo passo.
-- **Launcher** com configurações de vídeo, idioma, legendas e mods; o jogo roda dentro da janela dele.
-- **Português do Brasil**, com vozes e textos, montado a partir do seu disco americano.
+- **Do boot ao primeiro nível:** telas de abertura, carregamento, menus de primeiro uso, cinemática de abertura (imagem e som sincronizados), menu principal e o primeiro nível, com o Kratos acorrentado.
+- **Dois renderizadores:** o RSX do [RPCS3](https://github.com/RPCS3/rpcs3) (Vulkan ou OpenGL), que desenha o jogo corretamente, e o *live draw* próprio do projeto (D3D12).
+- **Desempenho:** menu principal a ~28 fps; o primeiro nível ainda roda a ~9 fps. O limite é o código das SPUs recompilado, não a placa de vídeo.
+- **Launcher** com vídeo, controles, idioma, legendas e mods; **português do Brasil** com vozes e textos, montado a partir do seu disco americano.
 
-Ainda não há release. O andamento detalhado está em [docs/STATUS.md](docs/STATUS.md) e os marcos em [docs/MILESTONES.md](docs/MILESTONES.md).
+Ainda não há release. Os marcos estão em [docs/MILESTONES.md](docs/MILESTONES.md).
 
 ## Jogando
 
@@ -60,20 +59,21 @@ JOGAR abre o jogo dentro da própria janela do launcher.
 
 ```
 ascension-recomp/
-  ps3recomp/    https://github.com/sp00nznet/ps3recomp, com as mudanças deste projeto (patches/)
+  ps3kit/       o runtime e o recompilador (fork do ps3recomp, com as mudanças deste projeto)
   ascension/    este repositório
   work/         o seu disco e o que sai dele (nunca vai para o git)
 ```
 
 1. **Disco:** extraia a sua imagem em `work/disc` e decripte `PS3_GAME/USRDIR/EBOOT.BIN` para `EBOOT.ELF` (com o RPCS3, ou `tools/decrypt_self.py` e o seu arquivo de chaves).
-2. **Tradução:** gere o código com o pipeline do ps3recomp. Os comandos exatos estão em [docs/STATUS.md](docs/STATUS.md#how-it-is-built).
-3. **Build:** CMake e Ninja; no Windows com o Visual Studio 2022 (clang-cl) e `.\scripts\windows\build.ps1`. Um build do zero leva de 20 a 40 minutos e pede 16 GB de memória.
+2. **Tradução:** gere o código C++ com o recompilador; os scripts de `scripts/` cobrem cada etapa (veja [scripts/README.md](scripts/README.md)).
+3. **Build:** Visual Studio 2022 (clang-cl), CMake e Ninja, com `.\scripts\windows\build.ps1`; o renderizador do RPCS3 se compila antes com `.\scripts\windows\build-gpu.ps1` (MSVC e Vulkan SDK). As configurações da máquina ficam num `.env` local. Um build do zero leva de 20 a 40 minutos e pede 16 GB de memória.
 
 Os saves ficam em `gamedata/dev_hdd0`.
 
 ## Créditos
 
 - [ps3recomp](https://github.com/sp00nznet/ps3recomp), de sp00nznet e colaboradores: o recompilador, o runtime e as bibliotecas de sistema.
+- [RPCS3](https://github.com/RPCS3/rpcs3): o código do RSX usado como renderizador (GPL-2.0; um build com ele fica sob a GPL-2.0).
 - `tools/decrypt_self.py`, do port do [Twisted Metal](https://github.com/sp00nznet/twistedmetal) (MIT).
 - O launcher segue o estilo do de [gow3_pc](https://github.com/FelipePrado0/gow3_pc); fonte Cinzel (SIL Open Font License).
 - God of War é marca registrada da Sony Interactive Entertainment.
