@@ -82,8 +82,14 @@ def build(us, eu, out, log=print):
     (out / 'mod.json').write_text(json.dumps({
         'name': 'Português (Brasil)',
         'language': 'pt-BR',
-        'description': 'Vozes e textos em português do Brasil: as vozes do disco americano e o texto que o '
-                       'disco europeu já traz, com a entrada na tabela de idiomas do jogo.',
+        'description': 'Brazilian Portuguese voices and text: the voices from the US disc and the text the '
+                       'European disc already has, with the entry in the game\'s language table.',
+        'translations': {
+            'pt-BR': {'description': 'Vozes e textos em português do Brasil: as vozes do disco americano e o texto '
+                                     'que o disco europeu já traz, com a entrada na tabela de idiomas do jogo.'},
+            'es': {'description': 'Voces y textos en portugués de Brasil: las voces del disco estadounidense y el '
+                                  'texto que ya trae el disco europeo, con la entrada en la tabla de idiomas del juego.'},
+        },
         'psarc_patches': {'GAME.PSARC': {LANGS: {'insert_after': '16 pl POLISH',
                                                   'line': '17 pt-br BR_PORTUGUESE'}}},
     }, ensure_ascii=False, indent=2), encoding='utf-8')

@@ -20,15 +20,17 @@ import sys
 from pathlib import Path
 from app.config import ROOT, SHOT, WINDOWS, load_settings
 from app.game import missing, prepare_game, release_disc, start_game
+from app.i18n import set_language, tr
 from app.ui import Launcher
 
 
 def main():
     if '--play' in sys.argv:
         s = load_settings()
+        set_language(s['ui_language'])
         gone = missing(s)
         if gone:
-            print('Falta: ' + '; '.join(gone))
+            print(tr('Missing {items}', items='; '.join(gone)))
             return 1
         env, mounted = prepare_game(s, status=print)
         try:

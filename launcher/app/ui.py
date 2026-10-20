@@ -3,6 +3,7 @@
 import ctypes
 import os
 import subprocess
+import sys
 import threading
 import time
 import webbrowser
@@ -13,6 +14,7 @@ from .config import (ANISO_LEVELS, APP_NAME, ASPECTS, CONTROL_GROUPS, DEADZONES,
     key_label, load_settings, save_settings)
 from .game import (all_mods, backup_list, disc_problem, icon_file, language_options, missing,
     prebuild_mods, prepare_game, release_disc, restore_saves, save_dir, start_game)
+from .i18n import available, set_language, tr
 from .music import Music
 from .native import mac_dock, register_font
 
@@ -27,6 +29,15 @@ TEXT, MUTED, GOLD = '#ece2d4', '#91857a', '#e2b86a'
 ACCENT, ACCENT_HI = '#9e1b16', '#c9271f'
 
 
+def translated(options):
+    """[(value, label)] with the labels in the launcher's language."""
+    return [(value, tr(label)) for value, label in options]
+
+
+def tr_key(name):
+    return tr(key_label(name))
+
+
 class Launcher:
     FADE_STEPS, FADE_MS, HOLD_MS = 30, 40, 7000
 
@@ -36,6 +47,8 @@ class Launcher:
         self.tk, self.ttk, self.filedialog, self.messagebox = tk, ttk, filedialog, messagebox
         self.root = root
         self.s = load_settings()
+        self.ui_language = self.s['ui_language']       # the one this window was built in
+        set_language(self.ui_language)
         self.vars = {}
         self.dynamic = {}
         self.mod_vars = {}
@@ -130,7 +143,7 @@ class Launcher:
         """A read-only combobox showing labels for stored values. `options` may
         be a function, re-read by refresh_choices when what it depends on changes."""
         source = options
-        options = source() if callable(source) else source
+        options = translated(source() if callable(source) else source)
         shown = self.tk.StringVar()
         box = self.ttk.Combobox(parent, textvariable=shown, state='readonly', width=width)
         box.maps = (dict(options), {label: value for value, label in options})
@@ -144,7 +157,7 @@ class Launcher:
 
     def refresh_choices(self, key, fallback):
         for box, shown, source in self.dynamic.get(key, []):
-            options = source()
+            options = translated(source())
             box.maps = (dict(options), {label: value for value, label in options})
             box.configure(values=[label for _, label in options])
             if self.var(key).get() not in box.maps[0]:
@@ -200,7 +213,7 @@ class Launcher:
                 p = self.filedialog.askopenfilename(initialdir=str(Path(current).parent) if current else str(ROOT))
             if p:
                 self.var(key).set(str(Path(p)))
-        self.ttk.Button(holder, text='Procurar…', command=browse).pack(side='left', padx=(8, 0))
+        self.ttk.Button(holder, text=tr('Browse…'), command=browse).pack(side='left', padx=(8, 0))
         self.row(f, title, holder, hint)
 
     # ---- layout -----------------------------------------------------------------------------
@@ -217,8 +230,8 @@ class Launcher:
         else:
             self.side_logo.configure(text='GOD OF WAR\nASCENSION', fg=GOLD, font=(self.heading, 15), justify='left')
         self.nav, self.current = {}, None
-        for name, title in (('home', 'Início'), ('video', 'Vídeo'), ('controls', 'Controles'), ('game', 'Jogo'),
-                            ('mods', 'Mods'), ('advanced', 'Avançado'), ('about', 'Sobre')):
+        for name, title in (('home', tr('Home')), ('video', tr('Video')), ('controls', tr('Controls')), ('game', tr('Game')),
+                            ('mods', tr('Mods')), ('advanced', tr('Advanced')), ('about', tr('About'))):
             item = tk.Label(side, text='    ' + title, bg=BG, fg=TEXT, anchor='w', font=(self.heading, 12),
                             pady=11, cursor='hand2')
             item.pack(fill='x')
@@ -231,9 +244,9 @@ class Launcher:
         self.music_label.pack(anchor='w', padx=22, pady=(0, 6))
         self.music_label.bind('<Button-1>', lambda _e: self.toggle_music())
         self.refresh_music_label()
-        tk.Label(side, text=('F11 ou Ctrl+Cmd+F' if MAC else 'F11 ou Alt+Enter') + ' no jogo:\ntela cheia', bg=BG, fg=MUTED, font=(self.ui, 9),
+        tk.Label(side, text=tr('{keys} in game:\nfull screen', keys=self.fullscreen_keys()), bg=BG, fg=MUTED, font=(self.ui, 9),
                  justify='left').pack(anchor='w', padx=22, pady=(0, 4))
-        tk.Label(side, text=f'v{VERSION} · recompilação PS3 → PC', bg=BG, fg=MUTED, font=(self.ui, 9)).pack(
+        tk.Label(side, text=tr('v{version} · PS3 → PC recompilation', version=VERSION), bg=BG, fg=MUTED, font=(self.ui, 9)).pack(
             anchor='w', padx=22, pady=(0, 18))
 
         right = self.right = tk.Frame(self.root, bg=PANEL)
@@ -245,7 +258,7 @@ class Launcher:
         self.status.pack(side='left', padx=24)
         self.play_button = self.ttk.Button(bar, text='JOGAR', style='Play.TButton', command=self.play)
         self.play_button.pack(side='right', padx=(10, 24), pady=12)
-        self.save_button = self.ttk.Button(bar, text='Salvar', command=self.save, state='disabled')
+        self.save_button = self.ttk.Button(bar, text=tr('Save'), command=self.save, state='disabled')
         self.save_button.pack(side='right', pady=12)
         self.content = tk.Frame(right, bg=PANEL)
         self.content.pack(fill='both', expand=True)
@@ -264,6 +277,9 @@ class Launcher:
             self.root.bind_all('<Button-4>', lambda e: self.wheel(e, -1))
             self.root.bind_all('<Button-5>', lambda e: self.wheel(e, 1))
         self.refresh_status()
+
+    def fullscreen_keys(self):
+        return 'F11 ' + tr('or') + (' Ctrl+Cmd+F' if MAC else ' Alt+Enter')
 
     def wheel(self, event, units=None):
         page = self.pages.get(self.current)
@@ -294,10 +310,10 @@ class Launcher:
         self.banner.bind('<Configure>', lambda _e: self.root.after_idle(self.draw_banner))
         quick = ttk.Frame(page, padding=(30, 12, 30, 14))
         quick.pack(fill='x')
-        ttk.Label(quick, text='CONFIGURAÇÕES RÁPIDAS', style='Section.TLabel').grid(row=0, column=0, columnspan=4, sticky='w')
+        ttk.Label(quick, text=tr('QUICK SETTINGS'), style='Section.TLabel').grid(row=0, column=0, columnspan=4, sticky='w')
         tk.Frame(quick, bg=LINE, height=1).grid(row=1, column=0, columnspan=4, sticky='we', pady=(3, 8))
-        items = (('Modo de exibição', 'display_mode', DISPLAY_MODES), ('Tamanho da janela', 'window_size', WINDOW_SIZES),
-                 ('Idioma', 'language', self.languages), ('Contador de FPS', 'perf_overlay', ON_OFF))
+        items = ((tr('Display mode'), 'display_mode', DISPLAY_MODES), (tr('Window size'), 'window_size', WINDOW_SIZES),
+                 (tr('Language'), 'language', self.languages), (tr('FPS counter'), 'perf_overlay', ON_OFF))
         for i, (title, key, options) in enumerate(items):
             r, c = 2 + i // 2, (i % 2) * 2
             ttk.Label(quick, text=title).grid(row=r, column=c, sticky='w', pady=5, padx=(0, 14))
@@ -392,56 +408,56 @@ class Launcher:
 
     # ---- pages ------------------------------------------------------------------------------
     def build_video(self):
-        f = self.page('video', 'Vídeo', 'Renderizador, janela e imagem do jogo.')
-        rpcs3 = 'Só com o renderizador RPCS3.'
-        self.section(f, 'Renderizador')
+        f = self.page('video', tr('Video'), tr("Renderer, window and the game's picture."))
+        rpcs3 = tr('RPCS3 renderer only.')
+        self.section(f, tr('Renderer'))
         if MAC:
-            hint = ('RPCS3 · Vulkan usa o MoltenVK (o jogo precisa de RPCS3=1 scripts/mac/build.sh, '
-                    'depois de scripts/mac/build-gpu.sh). Live draw desenha com Metal.')
+            hint = (tr('RPCS3 · Vulkan uses MoltenVK (the game needs RPCS3=1 scripts/mac/build.sh, after '
+                       'scripts/mac/build-gpu.sh). Live draw draws with Metal.'))
         elif WINDOWS:
-            hint = ('RPCS3: o renderizador do RPCS3 (pede o jogo compilado com -DASCENSION_RPCS3_RSX=ON). '
-                    'Live draw: o desenho próprio do ps3recomp.')
+            hint = (tr("RPCS3: RPCS3's renderer (needs the game built with -DASCENSION_RPCS3_RSX=ON). Live "
+                       "draw: ps3recomp's own drawing."))
         else:
-            hint = 'RPCS3: Vulkan ou OpenGL (o jogo compilado com -DASCENSION_RPCS3_RSX=ON).'
-        self.row(f, 'Renderizador', self.choice(f, 'renderer', RENDERERS), hint)
-        self.row(f, 'Resolução interna', self.choice(f, 'render_scale', RENDER_SCALES),
-                 'O jogo desenha em 1280 x 720; acima disso fica mais nítido e pesa mais na GPU. ' + rpcs3)
-        self.row(f, 'Filtro anisotrópico', self.choice(f, 'aniso', ANISO_LEVELS),
-                 'Texturas vistas de lado mais nítidas. ' + rpcs3)
-        self.section(f, 'Exibição')
-        self.row(f, 'Modo de exibição', self.choice(f, 'display_mode', DISPLAY_MODES),
-                 'No jogo, ' + ('F11 ou Ctrl+Cmd+F' if MAC else 'F11 ou Alt+Enter') + ' alterna entre janela e tela cheia.')
-        self.row(f, 'Tamanho da janela', self.choice(f, 'window_size', WINDOW_SIZES),
-                 'O tamanho da janela do jogo' + (' (em pixels; numa tela Retina ocupa metade em pontos).' if MAC else '.'))
-        self.row(f, 'Proporção', self.choice(f, 'aspect', ASPECTS),
-                 'Esticar deforma a imagem numa janela que não é 16:9.' + ('' if MAC else ' ' + rpcs3))
-        self.row(f, 'Escala da imagem', self.choice(f, 'scale_filter', SCALE_FILTERS),
-                 'Como a imagem é ampliada até a janela.' + ('' if MAC else ' ' + rpcs3))
-        self.row(f, 'Sincronização vertical', self.choice(f, 'vsync', VSYNC_MODES),
-                 'Ligada: sem cortes na imagem, mas com um pouco mais de atraso. Automático: Metal e live draw '
-                 'ligam, RPCS3 desliga.')
-        self.section(f, 'Informações na tela')
-        self.row(f, 'Contador de FPS', self.choice(f, 'perf_overlay', ON_OFF),
-                 'No macOS, FPS e tempo de quadro no título da janela.' if MAC else
-                 'FPS, tempo de quadro, velocidade, CPU e GPU no canto superior direito.')
+            hint = tr('RPCS3: Vulkan or OpenGL (the game built with -DASCENSION_RPCS3_RSX=ON).')
+        self.row(f, tr('Renderer'), self.choice(f, 'renderer', RENDERERS), hint)
+        self.row(f, tr('Internal resolution'), self.choice(f, 'render_scale', RENDER_SCALES),
+                 tr('The game draws at 1280 x 720; above that it is sharper and heavier on the GPU. ') + rpcs3)
+        self.row(f, tr('Anisotropic filtering'), self.choice(f, 'aniso', ANISO_LEVELS),
+                 tr('Sharper textures seen at an angle. ') + rpcs3)
+        self.section(f, tr('Display'))
+        self.row(f, tr('Display mode'), self.choice(f, 'display_mode', DISPLAY_MODES),
+                 tr('In game, {keys} switches between window and full screen.', keys=self.fullscreen_keys()))
+        self.row(f, tr('Window size'), self.choice(f, 'window_size', WINDOW_SIZES),
+                 tr("The size of the game's window") + (tr(' (in pixels; on a Retina display it takes half that in points).') if MAC else '.'))
+        self.row(f, tr('Aspect ratio'), self.choice(f, 'aspect', ASPECTS),
+                 tr('Stretching distorts the picture in a window that is not 16:9.') + ('' if MAC else ' ' + rpcs3))
+        self.row(f, tr('Image scaling'), self.choice(f, 'scale_filter', SCALE_FILTERS),
+                 tr('How the picture is enlarged to the window.') + ('' if MAC else ' ' + rpcs3))
+        self.row(f, tr('VSync'), self.choice(f, 'vsync', VSYNC_MODES),
+                 tr('On: no tearing, but a little more latency. Automatic: Metal and live draw turn it on, '
+                    'RPCS3 turns it off.'))
+        self.section(f, tr('On-screen information'))
+        self.row(f, tr('FPS counter'), self.choice(f, 'perf_overlay', ON_OFF),
+                 tr("On macOS, FPS and frame time in the window's title.") if MAC else
+                 tr('FPS, frame time, speed, CPU and GPU in the top right corner.'))
 
     # ---- controls: keyboard and mouse, controller ---------------------------------------------
     def build_controls(self):
         tk = self.tk
-        f = self.page('controls', 'Controles',
-                      'Teclado, mouse e controle funcionam juntos; o que estiver ligado responde.')
-        self.section(f, 'Geral')
-        self.row(f, 'Botão de confirmar', self.choice(f, 'enter_button', ENTER_BUTTONS),
-                 'Qual botão aceita nos menus do sistema.')
-        self.row(f, 'Esc fecha o jogo', self.choice(f, 'esc_quits', ON_OFF),
-                 'Ligado, Esc fecha o jogo em vez de chegar a ele (por padrão Esc é START).')
+        f = self.page('controls', tr('Controls'),
+                      tr('Keyboard, mouse and controller work together; whatever is connected responds.'))
+        self.section(f, tr('General'))
+        self.row(f, tr('Confirm button'), self.choice(f, 'enter_button', ENTER_BUTTONS),
+                 tr('Which button accepts in the system menus.'))
+        self.row(f, tr('Esc closes the game'), self.choice(f, 'esc_quits', ON_OFF),
+                 tr('On, Esc closes the game instead of reaching it (by default Esc is START).'))
 
         bar = tk.Frame(f, bg=PANEL)
         bar.grid(row=f.next_row, column=0, columnspan=3, sticky='we', pady=(22, 0))
         tk.Frame(f, bg=LINE, height=1).grid(row=f.next_row + 1, column=0, columnspan=3, sticky='we')
         f.next_row += 2
         self.control_tabs, self.control_tab_frames = {}, {}
-        for name, title in (('keyboard', 'TECLADO E MOUSE'), ('pad', 'CONTROLE')):
+        for name, title in (('keyboard', tr('KEYBOARD AND MOUSE')), ('pad', tr('CONTROLLER'))):
             holder = tk.Frame(bar, bg=PANEL)
             holder.pack(side='left', padx=(0, 6))
             label = tk.Label(holder, text=title, bg=PANEL, fg=TEXT, font=(self.heading, 11), padx=16, pady=8,
@@ -475,22 +491,22 @@ class Launcher:
         tk, ttk = self.tk, self.ttk
         top = tk.Frame(f, bg=PANEL)
         top.grid(row=0, column=0, columnspan=4, sticky='we', pady=(0, 6))
-        tk.Label(top, text='Clique numa tecla e aperte a nova tecla ou botão do mouse. Esc cancela; × apaga.',
+        tk.Label(top, text=tr('Click a key and press the new key or mouse button. Esc cancels; × clears.'),
                  bg=PANEL, fg=MUTED, font=(self.ui, 9)).pack(side='left')
-        ttk.Button(top, text='Clássico (setas)', command=lambda: self.key_preset('classic')).pack(side='right')
-        ttk.Button(top, text='Padrão (WASD)', command=lambda: self.key_preset('pc')).pack(side='right', padx=(0, 8))
+        ttk.Button(top, text=tr('Classic (arrows)'), command=lambda: self.key_preset('classic')).pack(side='right')
+        ttk.Button(top, text=tr('Default (WASD)'), command=lambda: self.key_preset('pc')).pack(side='right', padx=(0, 8))
         self.key_cells = {}
         r = 1
         for group, items in CONTROL_GROUPS:
-            tk.Label(f, text=group.upper(), bg=PANEL, fg=GOLD, font=(self.heading, 10)).grid(
+            tk.Label(f, text=tr(group).upper(), bg=PANEL, fg=GOLD, font=(self.heading, 10)).grid(
                 row=r, column=0, columnspan=4, sticky='w', pady=(14, 4))
             if r == 1:
-                for col, head in ((1, 'PRINCIPAL'), (2, 'ALTERNATIVA')):
+                for col, head in ((1, tr('PRIMARY')), (2, tr('ALTERNATE'))):
                     tk.Label(f, text=head, bg=PANEL, fg=MUTED, font=(self.ui, 8)).grid(row=r, column=col, sticky='sw',
                                                                                     pady=(14, 4))
             r += 1
             for control, title in items:
-                tk.Label(f, text=title, bg=PANEL, fg=TEXT, font=(self.ui, 10), anchor='w', width=26).grid(
+                tk.Label(f, text=tr(title), bg=PANEL, fg=TEXT, font=(self.ui, 10), anchor='w', width=26).grid(
                     row=r, column=0, sticky='w', pady=2)
                 for slot in (0, 1):
                     self.key_cells[(control, slot)] = self.key_cell(f, control, slot, r, 1 + slot)
@@ -519,7 +535,7 @@ class Launcher:
             keys = self.keymap.get(control, [])
             name = keys[slot] if slot < len(keys) else None
             capturing = self.capturing == (control, slot)
-            label.configure(text='Aperte…' if capturing else key_label(name),
+            label.configure(text=tr('Press…') if capturing else tr_key(name),
                             fg=GOLD if capturing else (TEXT if name else MUTED))
             cell.configure(highlightbackground=GOLD if capturing else LINE)
 
@@ -531,7 +547,7 @@ class Launcher:
             for other, keys in self.keymap.items():
                 if name in keys and (other, keys.index(name)) != (control, slot):
                     keys.remove(name)
-                    note = f'{key_label(name)} saiu de {self.control_title(other)}.'
+                    note = tr('{key} was removed from {control}.', key=tr_key(name), control=self.control_title(other))
         keys = [k for k in self.keymap.get(control, []) if k]
         while len(keys) <= slot:
             keys.append(None)
@@ -544,6 +560,7 @@ class Launcher:
         for group, items in CONTROL_GROUPS:
             for c, title in items:
                 if c == control:
+                    group, title = tr(group), tr(title)
                     return (group.split(' · ')[0] + ' ' + title.lower()) if c.startswith(('ls_', 'rs_')) else title.split('  ')[0]
         return control
 
@@ -556,7 +573,7 @@ class Launcher:
         self.cancel_capture(refresh=False)
         self.capturing = (control, slot)
         self.refresh_keys()
-        self.refresh_status('Aperte uma tecla ou um botão do mouse para ' + self.control_title(control) + ' (Esc cancela).')
+        self.refresh_status(tr('Press a key or mouse button for {control} (Esc cancels).', control=self.control_title(control)))
         # Armed a moment later, so the click that started it is not taken as Mouse1.
         self.root.after(250, self.arm_capture, (control, slot))
 
@@ -589,7 +606,7 @@ class Launcher:
         if name:
             self.set_key(*self.capturing, name)
         else:
-            self.refresh_status(f'A tecla "{sym}" não pode ser usada; escolha outra (Esc cancela).')
+            self.refresh_status(tr('The key "{key}" cannot be used; choose another (Esc cancels).', key=sym))
         return 'break'
 
     def capture_mouse(self, event):
@@ -609,34 +626,34 @@ class Launcher:
         tk, ttk = self.tk, self.ttk
         top = tk.Frame(f, bg=PANEL)
         top.grid(row=0, column=0, columnspan=4, sticky='we', pady=(0, 6))
-        tk.Label(top, text='Controles de Xbox, PlayStation e outros que o sistema reconhece. '
-                           'Qual botão do controle faz cada botão do PS3:',
+        tk.Label(top, text=tr('Xbox, PlayStation and other controllers the system recognises. Which '
+                              'controller button does each PS3 button:'),
                  bg=PANEL, fg=MUTED, font=(self.ui, 9)).pack(side='left')
-        ttk.Button(top, text='Restaurar padrão', command=self.pad_defaults).pack(side='right')
+        ttk.Button(top, text=tr('Restore defaults'), command=self.pad_defaults).pack(side='right')
         self.pad_vars = {}
         r = 1
         for group, items in CONTROL_GROUPS:
             items = [(c, t) for c, t in items if c in PAD_CONTROLS]
             if not items:
                 continue
-            tk.Label(f, text=group.upper(), bg=PANEL, fg=GOLD, font=(self.heading, 10)).grid(
+            tk.Label(f, text=tr(group).upper(), bg=PANEL, fg=GOLD, font=(self.heading, 10)).grid(
                 row=r, column=0, columnspan=4, sticky='w', pady=(14, 4))
             r += 1
             for control, title in items:
-                tk.Label(f, text=title, bg=PANEL, fg=TEXT, font=(self.ui, 10), anchor='w', width=26).grid(
+                tk.Label(f, text=tr(title), bg=PANEL, fg=TEXT, font=(self.ui, 10), anchor='w', width=26).grid(
                     row=r, column=0, sticky='w', pady=2)
                 v = self.tk.StringVar(value=self.padmap.get(control, PAD_DEFAULTS[control]))
                 v.trace_add('write', lambda *_a, c=control, var=v: self.padmap.__setitem__(c, var.get()))
                 self.pad_vars[control] = v
                 self.choice_var(f, v, PAD_BUTTONS, width=26).grid(row=r, column=1, sticky='w', pady=2)
                 r += 1
-        tk.Label(f, text='ANALÓGICOS', bg=PANEL, fg=GOLD, font=(self.heading, 10)).grid(
+        tk.Label(f, text=tr('STICKS'), bg=PANEL, fg=GOLD, font=(self.heading, 10)).grid(
             row=r, column=0, columnspan=4, sticky='w', pady=(14, 4))
         r += 1
-        tk.Label(f, text='Zona morta', bg=PANEL, fg=TEXT, font=(self.ui, 10), anchor='w', width=26).grid(
+        tk.Label(f, text=tr('Dead zone'), bg=PANEL, fg=TEXT, font=(self.ui, 10), anchor='w', width=26).grid(
             row=r, column=0, sticky='w', pady=2)
         self.choice(f, 'pad_deadzone', DEADZONES, width=26).grid(row=r, column=1, sticky='w', pady=2)
-        tk.Label(f, text='Quanto do centro dos analógicos é ignorado; aumente se o personagem anda sozinho.',
+        tk.Label(f, text=tr("How much of the sticks' centre is ignored; raise it if the character walks on its own."),
                  bg=PANEL, fg=MUTED, font=(self.ui, 9), wraplength=320, justify='left').grid(
             row=r, column=2, columnspan=2, sticky='w', padx=(18, 0))
 
@@ -647,6 +664,7 @@ class Launcher:
 
     def choice_var(self, parent, var, options, width=28):
         """A read-only combobox over a StringVar of its own (not a setting key)."""
+        options = translated(options)
         shown = self.tk.StringVar()
         box = self.ttk.Combobox(parent, textvariable=shown, state='readonly', width=width,
                                 values=[label for _, label in options])
@@ -658,29 +676,29 @@ class Launcher:
         return box
 
     def build_game(self):
-        f = self.page('game', 'Jogo', 'Idioma, legendas e saves.')
-        self.section(f, 'Idioma')
-        self.row(f, 'Idioma do jogo', self.choice(f, 'language', self.languages),
-                 'Textos, legendas e vozes seguem o idioma do sistema do PS3. Vozes em grego: o próprio jogo oferece no primeiro início.')
+        f = self.page('game', tr('Game'), tr('Language, subtitles and saves.'))
+        self.section(f, tr('Language'))
+        self.row(f, tr('Game language'), self.choice(f, 'language', self.languages),
+                 tr("Text, subtitles and voices follow the PS3's system language. Greek voices: the game itself offers them at first start."))
         sub = self.choice(f, 'subtitles', ON_OFF)
-        self.row(f, 'Legendas', sub, 'Legendas nas falas e cinemáticas.')
-        self.note(f, 'O jogo guarda o idioma e as legendas no save do sistema; o launcher os ajusta ali antes de '
-                     'cada início, então valem mesmo depois do primeiro uso.')
-        self.section(f, 'Saves')
-        self.row(f, 'Backup antes de jogar', self.choice(f, 'backup_saves', ON_OFF),
-                 'Copia os saves para gamedata/save-backups (os últimos 10 ficam).')
+        self.row(f, tr('Subtitles'), sub, tr('Subtitles for dialogue and cinematics.'))
+        self.note(f, tr('The game keeps the language and subtitles in its system save; the launcher sets '
+                        'them there before each start, so they hold after the first start too.'))
+        self.section(f, tr('Saves'))
+        self.row(f, tr('Back up before playing'), self.choice(f, 'backup_saves', ON_OFF),
+                 tr('Copies the saves to gamedata/save-backups (the last 10 are kept).'))
         holder = self.ttk.Frame(f)
-        self.ttk.Button(holder, text='Abrir pasta de saves', command=lambda: self.open_path(save_dir())).pack(side='left')
-        self.ttk.Button(holder, text='Abrir backups', command=lambda: self.open_path(ROOT / 'gamedata' / 'save-backups')).pack(
+        self.ttk.Button(holder, text=tr('Open saves folder'), command=lambda: self.open_path(save_dir())).pack(side='left')
+        self.ttk.Button(holder, text=tr('Open backups'), command=lambda: self.open_path(ROOT / 'gamedata' / 'save-backups')).pack(
             side='left', padx=(8, 0))
         self.row(f, '', holder)
         holder = self.ttk.Frame(f)
         self.backup_box = self.ttk.Combobox(holder, state='readonly', width=30)
         self.backup_box.bind('<MouseWheel>', lambda e: 'break')
         self.backup_box.pack(side='left')
-        self.restore_button = self.ttk.Button(holder, text='Restaurar', command=self.restore_backup)
+        self.restore_button = self.ttk.Button(holder, text=tr('Restore'), command=self.restore_backup)
         self.restore_button.pack(side='left', padx=(8, 0))
-        self.row(f, 'Restaurar um backup', holder, 'Os saves atuais viram um backup antes, então nada se perde.')
+        self.row(f, tr('Restore a backup'), holder, tr('The current saves become a backup first, so nothing is lost.'))
         self.refresh_backups()
 
     def refresh_backups(self):
@@ -692,7 +710,7 @@ class Launcher:
             except ValueError:
                 labels.append(d.name)
         self.backup_box.configure(values=labels)
-        self.backup_box.set(labels[0] if labels else 'Nenhum backup')
+        self.backup_box.set(labels[0] if labels else tr('No backups'))
         busy = self.process or self.preparing or not labels
         self.restore_button.configure(state='disabled' if busy else 'normal')
 
@@ -701,42 +719,44 @@ class Launcher:
         if i < 0 or self.process or self.preparing:
             return
         label = self.backup_box.get()
-        if not self.messagebox.askyesno(APP_NAME, f'Voltar os saves para {label}?'):
+        if not self.messagebox.askyesno(APP_NAME, tr('Put the saves back to {label}?', label=label)):
             return
         try:
             restore_saves(self.backups[i])
         except OSError as e:
-            self.messagebox.showerror(APP_NAME, f'Não consegui restaurar:\n{e}')
+            self.messagebox.showerror(APP_NAME, tr('Could not restore:\n{error}', error=e))
             return
         self.refresh_backups()
-        self.refresh_status(f'Saves restaurados de {label}.')
+        self.refresh_status(tr('Saves restored from {label}.', label=label))
 
     def build_mods(self):
-        f = self.page('mods', 'Mods', 'Ligue, desligue e ordene. O primeiro da lista vence quando dois mexem no mesmo arquivo.')
-        self.section(f, 'Mods')
+        f = self.page('mods', tr('Mods'), tr('Turn them on and off, and order them. The first in the list wins when two change the same file.'))
+        self.section(f, tr('Mods'))
         self.mods_frame = self.tk.Frame(f, bg=PANEL)
         self.mods_frame.grid(row=f.next_row, column=0, columnspan=3, sticky='we')
         self.mods_frame.columnconfigure(0, weight=1)
         f.next_row += 1
-        self.section(f, 'Português do Brasil')
-        self.note(f, 'O disco europeu já traz os textos em português do Brasil; as vozes vêm do disco americano. '
-                     'Escolha a imagem (.iso) do seu disco americano, ou a pasta extraída dele, e o launcher monta o '
-                     'mod PT-BR na sua pasta de mods. Com ele ligado, Português (Brasil) aparece em Idioma.')
+        self.section(f, tr('Brazilian Portuguese'))
+        self.note(f, tr('The European disc already has the Brazilian Portuguese text; the voices come from '
+                        'the US disc. Choose the image (.iso) of your US disc, or its extracted folder, and '
+                        'the launcher builds the PT-BR mod in your mods folder. With it on, Português '
+                        '(Brasil) shows up under Language.'))
         holder = self.ttk.Frame(f)
-        self.ttk.Button(holder, text='Criar mod PT-BR do disco americano (.iso)…',
+        self.ttk.Button(holder, text=tr('Create PT-BR mod from the US disc (.iso)…'),
                         command=lambda: self.make_ptbr(folder=False)).pack(side='left')
-        self.ttk.Button(holder, text='…ou da pasta extraída', command=lambda: self.make_ptbr(folder=True)).pack(
+        self.ttk.Button(holder, text=tr('…or from the extracted folder'), command=lambda: self.make_ptbr(folder=True)).pack(
             side='left', padx=(8, 0))
         holder.grid(row=f.next_row, column=0, columnspan=3, sticky='w', pady=(8, 0))
         f.next_row += 1
-        self.section(f, 'Pasta de mods')
-        self.path_row(f, 'mods_dir', 'Pasta', folder=True)
-        self.note(f, 'Cada mod é uma subpasta que espelha o USRDIR do jogo (um mod que troca GAME.PSARC traz '
-                     '<mod>/GAME.PSARC), ou um mod.json com uma receita que o launcher aplica aos arquivos do seu '
-                     'disco ao jogar. Os mods incluídos vêm com o Ascension e não trazem nada do jogo.')
+        self.section(f, tr('Mods folder'))
+        self.path_row(f, 'mods_dir', tr('Folder'), folder=True)
+        self.note(f, tr("Each mod is a subfolder that mirrors the game's USRDIR (a mod that replaces "
+                        'GAME.PSARC carries <mod>/GAME.PSARC), or a mod.json with a recipe the launcher '
+                        "applies to your disc's files when playing. The included mods come with Ascension "
+                        'and carry nothing from the game.'))
         holder = self.ttk.Frame(f)
-        self.ttk.Button(holder, text='Atualizar lista', command=self.refresh_mods).pack(side='left')
-        self.ttk.Button(holder, text='Abrir pasta',
+        self.ttk.Button(holder, text=tr('Refresh list'), command=self.refresh_mods).pack(side='left')
+        self.ttk.Button(holder, text=tr('Open folder'),
                         command=lambda: self.open_path(Path(self.var('mods_dir').get()), make=True)).pack(side='left', padx=(8, 0))
         holder.grid(row=f.next_row, column=0, columnspan=3, sticky='w', pady=(10, 0))
         f.next_row += 1
@@ -783,7 +803,7 @@ class Launcher:
         self.mod_order = [m['id'] for m in mods]
         enabled = set(s['mods_enabled'])
         if not mods:
-            ttk.Label(self.mods_frame, text='Nenhum mod.', style='Muted.TLabel').grid(row=0, column=0, sticky='w')
+            ttk.Label(self.mods_frame, text=tr('No mods.'), style='Muted.TLabel').grid(row=0, column=0, sticky='w')
         for i, m in enumerate(mods):
             v = self.mod_vars.get(m['id']) or tk.BooleanVar(value=m['id'] in enabled)
             self.mod_vars[m['id']] = v
@@ -795,7 +815,7 @@ class Launcher:
             head.grid(row=0, column=1, sticky='w', pady=(10, 0))
             tk.Label(head, text=m['name'], bg=CARD, fg=TEXT, font=(self.heading, 11)).pack(side='left')
             if m['builtin']:
-                tk.Label(head, text=' INCLUÍDO ', bg='#3a2a14', fg=GOLD, font=(self.ui, 7, 'bold')).pack(side='left', padx=(10, 0))
+                tk.Label(head, text=tr(' INCLUDED '), bg='#3a2a14', fg=GOLD, font=(self.ui, 7, 'bold')).pack(side='left', padx=(10, 0))
             tk.Label(card, text=m['description'] or str(m['path']), bg=CARD, fg=MUTED, font=(self.ui, 9),
                      wraplength=620, justify='left').grid(row=1, column=1, sticky='w', pady=(2, 10))
             arrows = tk.Frame(card, bg=CARD)
@@ -815,15 +835,15 @@ class Launcher:
 
     def make_ptbr(self, folder):
         if folder:
-            src = self.filedialog.askdirectory(title='Pasta do disco americano (com PS3_GAME)')
+            src = self.filedialog.askdirectory(title=tr('US disc folder (with PS3_GAME)'))
         else:
-            src = self.filedialog.askopenfilename(title='Imagem do disco americano',
-                                                  filetypes=[('Imagem de disco', '*.iso'), ('Todos', '*.*')])
+            src = self.filedialog.askopenfilename(title=tr('US disc image'),
+                                                  filetypes=[(tr('Disc image'), '*.iso'), (tr('All'), '*.*')])
         if not src:
             return
         out = Path(self.var('mods_dir').get()) / 'PT-BR'
         eu = Path(self.var('eboot').get()).parent
-        self.refresh_status('Criando o mod PT-BR… (copia ~140 MB)')
+        self.refresh_status(tr('Creating the PT-BR mod… (copies ~140 MB)'))
 
         def work():
             import importlib.util
@@ -848,8 +868,8 @@ class Launcher:
 
     def ptbr_done(self, error):
         if error:
-            self.refresh_status('O mod PT-BR não foi criado.')
-            self.messagebox.showerror(APP_NAME, 'Não consegui criar o mod PT-BR:\n' + error)
+            self.refresh_status(tr('The PT-BR mod was not created.'))
+            self.messagebox.showerror(APP_NAME, tr('Could not create the PT-BR mod:\n{error}', error=error))
             return
         if 'PT-BR' not in self.mod_order:
             self.mod_order.insert(0, 'PT-BR')
@@ -857,7 +877,7 @@ class Launcher:
         self.refresh_mods()
         self.var('language').set('17')
         self.refresh_choices('language', '7')
-        self.refresh_status('Mod PT-BR criado e ligado; idioma: Português (Brasil). Clique em Salvar.')
+        self.refresh_status(tr('PT-BR mod created and turned on; language: Português (Brasil). Click Save.'))
 
     def move_mod(self, name, step):
         i = self.mod_order.index(name)
@@ -867,50 +887,75 @@ class Launcher:
             self.refresh_mods()
 
     def build_advanced(self):
-        f = self.page('advanced', 'Avançado', 'Caminhos, música do launcher e variáveis do runtime.')
-        self.section(f, 'Arquivos do jogo')
-        self.path_row(f, 'game_exe', 'Executável')
+        f = self.page('advanced', tr('Advanced'), tr("Paths, the launcher's music and runtime variables."))
+        self.section(f, tr('Game files'))
+        self.path_row(f, 'game_exe', tr('Executable'))
         self.path_row(f, 'eboot', 'EBOOT.ELF')
-        self.path_row(f, 'disc_dir', 'Pasta do disco', folder=True,
-                      hint='A pasta com PS3_GAME.' + (' Com a imagem abaixo, o launcher a monta aqui.' if MAC else
-                                                       ' Vazio: a do EBOOT.ELF.'))
+        self.path_row(f, 'disc_dir', tr('Disc folder'), folder=True,
+                      hint=tr('The folder with PS3_GAME.') + (tr(' With the image below, the launcher mounts it here.') if MAC else
+                                                       tr(" Empty: the EBOOT.ELF's own.")))
         if MAC:
-            self.path_row(f, 'disc_iso', 'Imagem do disco (.iso)',
-                          hint='Montada só para leitura na pasta do disco ao jogar.')
-        self.section(f, 'Launcher')
-        self.row(f, 'Música de fundo', self.choice(f, 'music', ON_OFF))
-        self.section(f, 'Runtime')
+            self.path_row(f, 'disc_iso', tr('Disc image (.iso)'),
+                          hint=tr('Mounted read-only at the disc folder when playing.'))
+        self.section(f, tr('Launcher'))
+        self.row(f, tr('Background music'), self.choice(f, 'music', ON_OFF))
+        self.row(f, tr('Launcher language'), self.choice(f, 'ui_language', [('auto', "Automatic (the system's)")] + available()),
+                 tr("The launcher's own text only; the game's language is under Game."))
+        self.var('ui_language').trace_add('write', lambda *_: self.root.after_idle(self.language_changed))
+        self.section(f, tr('Runtime'))
         entry = self.ttk.Entry(f, textvariable=self.var('extra_env'), width=70)
-        self.row(f, 'Variáveis extras', entry)
-        self.note(f, 'Separadas por ";", por exemplo  PS3_VERBOSE=1;VDEC_TIMELOG=1.  Para quem está depurando.')
-        self.section(f, 'Registro')
+        self.row(f, tr('Extra variables'), entry)
+        self.note(f, tr('Separated by ";", for example  PS3_VERBOSE=1;VDEC_TIMELOG=1.  For debugging.'))
+        self.section(f, tr('Log'))
         holder = self.ttk.Frame(f)
-        self.ttk.Button(holder, text='Abrir último log', command=lambda: self.open_path(self.log_path())).pack(side='left')
-        self.ttk.Button(holder, text='Pasta do jogo', command=lambda: self.open_path(ROOT)).pack(side='left', padx=(8, 0))
+        self.ttk.Button(holder, text=tr('Open last log'), command=lambda: self.open_path(self.log_path())).pack(side='left')
+        self.ttk.Button(holder, text=tr('Game folder'), command=lambda: self.open_path(ROOT)).pack(side='left', padx=(8, 0))
         self.row(f, '', holder)
 
+    def language_changed(self):
+        """A new launcher language takes a new window: restart now, or on the next start."""
+        code = self.var('ui_language').get()
+        if code == self.ui_language or getattr(self, 'asking_language', False):
+            return
+        if self.process or self.preparing:
+            self.var('ui_language').set(self.ui_language)
+            self.refresh_status(tr("Close the game before changing the launcher's language."))
+            return
+        self.asking_language = True
+        restart = self.messagebox.askyesno(APP_NAME, tr('Restart the launcher now to change the language?'))
+        self.asking_language = False
+        if not restart:
+            self.refresh_status(tr('The language changes the next time the launcher opens (click Save).'))
+            return
+        self.save()
+        self.music.close()
+        release_disc(self.mounted)
+        subprocess.Popen([sys.executable] + sys.argv, cwd=os.getcwd())
+        self.root.destroy()
+
     def build_about(self):
-        f = self.page('about', 'Sobre', f'{APP_NAME} (PC) · launcher v{VERSION}')
-        self.section(f, 'O projeto')
-        self.note(f, 'God of War: Ascension (PS3) recompilado para rodar nativamente no PC. O código PowerPC do '
-                     'jogo é traduzido para C e compilado para x86-64; o código dos SPUs também é recompilado, e '
-                     'o que o PS3 fazia no sistema (vídeo RSX, áudio, arquivos, SPURS) é reimplementado pelo '
-                     'runtime do ps3recomp. Não é um emulador e não traz nada do jogo: você precisa do seu '
-                     'próprio disco.')
-        self.note(f, 'Estado: experimento. O jogo vai do boot ao primeiro nível, mas ainda lento (menu a ~28 fps, '
-                     'primeiro nível a ~9 fps). Veja o andamento no repositório.')
-        self.section(f, 'Links')
-        for title, url in (('Este projeto', 'https://github.com/arnaldolima1/gow-ascension-pc'),
-                           ('Marcos', 'https://github.com/arnaldolima1/gow-ascension-pc/blob/main/docs/MILESTONES.md'),
+        f = self.page('about', tr('About'), f'{APP_NAME} (PC) · launcher v{VERSION}')
+        self.section(f, tr('The project'))
+        self.note(f, tr("God of War: Ascension (PS3) recompiled to run natively on a PC. The game's PowerPC "
+                        'code is translated to C and compiled for x86-64; the SPU code is recompiled too, '
+                        "and what the PS3's system did (RSX video, audio, files, SPURS) is reimplemented by "
+                        'the ps3recomp runtime. It is not an emulator and carries nothing from the game: '
+                        'you need your own disc.'))
+        self.note(f, tr('Status: experiment. The game goes from boot to the first level, but still slowly '
+                        '(menu at ~28 fps, first level at ~9 fps). See the progress in the repository.'))
+        self.section(f, tr('Links'))
+        for title, url in ((tr('This project'), 'https://github.com/arnaldolima1/gow-ascension-pc'),
+                           (tr('Milestones'), 'https://github.com/arnaldolima1/gow-ascension-pc/blob/main/docs/MILESTONES.md'),
                            ('ps3recomp (sp00nznet)', 'https://github.com/sp00nznet/ps3recomp')):
             link = self.tk.Label(f, text=url, bg=PANEL, fg=GOLD, cursor='hand2', font=(self.ui, 10, 'underline'))
             link.bind('<Button-1>', lambda _e, u=url: webbrowser.open(u))
             self.row(f, title, link)
-        self.section(f, 'Créditos')
-        self.note(f, 'Por Arnaldo Lima, com o runtime ps3recomp de sp00nznet e colaboradores. Launcher no estilo '
-                     'do de gow3_pc (FelipePrado0). Fonte Cinzel (SIL Open Font License).')
-        self.note(f, 'God of War é marca da Sony Interactive Entertainment. Projeto de fãs, sem fins lucrativos e '
-                     'sem ligação com a Sony ou a Santa Monica Studio.')
+        self.section(f, tr('Credits'))
+        self.note(f, tr('By Arnaldo Lima, with the ps3recomp runtime by sp00nznet and contributors. '
+                        "Launcher in the style of gow3_pc's (FelipePrado0). Cinzel typeface (SIL Open Font "
+                        'License).'))
+        self.note(f, tr('God of War is a trademark of Sony Interactive Entertainment. A non-profit fan '
+                        'project, not affiliated with Sony or Santa Monica Studio.'))
 
     # ---- state ------------------------------------------------------------------------------
     def gather(self):
@@ -941,14 +986,15 @@ class Launcher:
         save_settings(self.s)
         self.saved = self.gather()
         self.save_button.configure(state='disabled')
-        self.refresh_status('Configurações salvas.')
+        self.refresh_status(tr('Settings saved.'))
         threading.Thread(target=prebuild_mods, args=(dict(self.s),), daemon=True).start()
 
     def refresh_status(self, text=None):
         if text is None:
             s = {**self.s, **self.gather()}
             gone, problem = missing(s), disc_problem(s)
-            text = ('Falta ' + ' e '.join(gone)) if gone else ('Atenção: ' + problem + '.') if problem else 'Pronto para jogar.'
+            text = (tr('Missing {items}', items=tr(' and ').join(gone)) if gone else
+                    tr('Warning: {problem}.', problem=problem) if problem else tr('Ready to play.'))
         self.status.configure(text=text)
 
     # ---- music ------------------------------------------------------------------------------
@@ -972,9 +1018,9 @@ class Launcher:
             return
         err = getattr(getattr(self, 'music', None), 'error', '')
         if err and self.music_on():
-            text = '♪ Música: ' + err
+            text = tr('♪ Music: ') + err
         else:
-            text = '♪ Música: ligada' if self.music_on() else '♪ Música: desligada'
+            text = tr('♪ Music: on') if self.music_on() else tr('♪ Music: off')
         self.music_label.configure(text=text)
 
     # ---- actions ----------------------------------------------------------------------------
@@ -986,7 +1032,7 @@ class Launcher:
         if make:
             path.mkdir(parents=True, exist_ok=True)
         if not path.exists():
-            self.messagebox.showinfo(APP_NAME, f'Ainda não existe:\n{path}')
+            self.messagebox.showinfo(APP_NAME, tr('Does not exist yet:\n{path}', path=path))
             return
         if WINDOWS:
             os.startfile(str(path))
@@ -1002,11 +1048,11 @@ class Launcher:
             self.save()
         gone = missing(self.s)
         if gone:
-            self.messagebox.showerror(APP_NAME, 'Não encontrei ' + ' e '.join(gone) + '.\nAjuste em Avançado.')
+            self.messagebox.showerror(APP_NAME, tr('Could not find {items}.\nSet it in Advanced.', items=tr(' and ').join(gone)))
             return
         problem = disc_problem(self.s)
         if problem:
-            self.messagebox.showerror(APP_NAME, 'Este jogo foi compilado da versão europeia, mas ' + problem + '.')
+            self.messagebox.showerror(APP_NAME, tr('This game was built from the European release, but {problem}.', problem=problem))
             return
         self.preparing = True
         self.play_button.configure(state='disabled')
@@ -1033,14 +1079,14 @@ class Launcher:
         self.preparing = False
         self.music.pause()
         self.refresh_backups()
-        self.refresh_status('Jogo em execução…')
+        self.refresh_status(tr('Game running…'))
         threading.Thread(target=self.wait_game, daemon=True).start()
 
     def launch_failed(self, error):
         self.preparing = False
         self.play_button.configure(state='normal')
         self.refresh_status()
-        self.messagebox.showerror(APP_NAME, f'O jogo não abriu:\n{error}')
+        self.messagebox.showerror(APP_NAME, tr('The game did not start:\n{error}', error=error))
 
     def enter_game_view(self):
         """The launcher's window becomes the game's: the pages give way to a
@@ -1108,15 +1154,15 @@ class Launcher:
         if self.music_on():
             self.music.play()
         if code == 0:
-            self.refresh_status('Jogo fechado.')
+            self.refresh_status(tr('Game closed.'))
             return
-        self.refresh_status(f'O jogo terminou com código {code}.')
-        if self.messagebox.askyesno(APP_NAME, f'O jogo terminou com código {code}.\nAbrir o log desta execução?'):
+        self.refresh_status(tr('The game ended with code {code}.', code=code))
+        if self.messagebox.askyesno(APP_NAME, tr("The game ended with code {code}.\nOpen this run's log?", code=code)):
             self.open_path(self.log_path())
 
     def close(self):
         if self.process:
-            if not self.messagebox.askyesno(APP_NAME, 'Fechar o jogo?'):
+            if not self.messagebox.askyesno(APP_NAME, tr('Close the game?')):
                 return
             self.process.terminate()
             try:
@@ -1124,7 +1170,7 @@ class Launcher:
             except subprocess.TimeoutExpired:
                 self.process.kill()
             self.log.close()
-        if self.gather() != self.saved and self.messagebox.askyesno(APP_NAME, 'Salvar as alterações antes de sair?'):
+        if self.gather() != self.saved and self.messagebox.askyesno(APP_NAME, tr('Save the changes before leaving?')):
             self.save()
         self.music.close()
         release_disc(self.mounted)

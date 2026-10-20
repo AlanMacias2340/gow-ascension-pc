@@ -28,17 +28,24 @@ Pages: Home (cross-fading artwork, quick settings), Video, Controls, Game, Mods,
 Mods come from two places, listed together in one priority order (first wins): `mods-builtin/` in this repository (shown as included) and the user's mods folder. A mod is a folder that mirrors `USRDIR` (its files replace the disc's), and/or a `mod.json`:
 
 ```json
-{"name": "Pular intro", "description": "...",
+{"name": "Skip intro", "description": "...",
+ "translations": {"pt-BR": {"name": "Pular intro", "description": "..."}},
  "psarc_patches": {"GAME.PSARC": {"/INTRO/BOOT_BCES01741.TXT": {"text": ""}}}}
 ```
 
-`psarc_patches` are recipes for files inside an archive: `{"text": ...}` replaces one, `{"insert_after": <line>, "line": <new line>}` adds a line. At PLAY the launcher builds each patched archive once from the disc's copy (or from the copy the highest-priority mod ships) into `%APPDATA%\ascension-launcher\generated\`, applying every enabled mod's recipes, lowest priority first, and puts that folder first in `PS3_MODS`. Included: **Skip intro** (an empty boot-screen list).
+`psarc_patches` are recipes for files inside an archive: `{"text": ...}` replaces one, `{"insert_after": <line>, "line": <new line>}` adds a line. At PLAY the launcher builds each patched archive once from the disc's copy (or from the copy the highest-priority mod ships) into `%APPDATA%\ascension-launcher\generated\`, applying every enabled mod's recipes, lowest priority first, and puts that folder first in `PS3_MODS`. `translations` (optional) gives the name and description in the launcher's other languages. Included: **Skip intro** (an empty boot-screen list).
 
 Brazilian Portuguese needs the PT-BR mod, which the Mods page builds from your own US disc (an `.iso` or its extracted folder) with `tools/make_ptbr_mod.py`; with it on, the language list offers Português (Brasil).
 
 Saves are copied to `gamedata\save-backups\` before each start, unless the newest copy already matches them (the last ten are kept). The Game page restores any of them (the current saves become a backup first). The run's output goes to `build\logs\last_run.log`, the run before it to `last_run.prev.log`; when the game ends with an error the launcher offers to open the log. PLAY prepares the disc, saves and mods in the background, with each step in the status bar, and refuses a disc whose `PARAM.SFO` is not `BCES01741`. Saving the settings also builds the mods' archives ahead of time when the disc is there; on macOS the `.iso` the launcher mounted is unmounted when it closes.
 
 The artwork and music are not in the repository. The launcher reads `background*.jpg/png`, `logo.png`, `icon-2.png` and `music.mp3` from `launcher\assets\` or `..\work\data\launcher\`; without them it still works, plainer. `Cinzel-Black.ttf` is the Cinzel typeface (SIL Open Font License, `OFL-Cinzel.txt`).
+
+## Languages
+
+The launcher's own text is in English, Brazilian Portuguese or Spanish: Advanced → Launcher language, **Automatic** by default (the system's language, else English); changing it restarts the launcher. The game's language is a separate setting, on the Game page.
+
+The code is written in English and passes each text through `tr()` (`app/i18n.py`). A language is a file in `lang/` named by its code (`pt-BR.json`, `es.json`) mapping each English text to its translation, with `"_name"` as the language's own name; `{name}` fields are kept as they are. Text missing from a file stays in English. Adding a language is adding a file.
 
 ## Controls
 

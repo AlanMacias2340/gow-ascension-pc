@@ -32,11 +32,11 @@ LANGUAGES = [
     ('17', 'Português (Brasil)'), ('2', 'Español'), ('3', 'Français'), ('4', 'Deutsch'),
     ('5', 'Italiano'), ('8', 'Русский'), ('16', 'Polski'), ('19', 'Türkçe'),
 ]
-DISPLAY_MODES = [('window', 'Janela'), ('fullscreen', 'Tela cheia (sem bordas)')]
+DISPLAY_MODES = [('window', 'Window'), ('fullscreen', 'Full screen (borderless)')]
 WINDOW_SIZES = [(s, s.replace('x', ' x ')) for s in
                 ('1280x720', '1600x900', '1920x1080', '2560x1440', '3840x2160')]
-ENTER_BUTTONS = [('cross', 'X confirma (Ocidente)'), ('circle', 'O confirma (Japão)')]
-ON_OFF = [('1', 'Ligado'), ('0', 'Desligado')]
+ENTER_BUTTONS = [('cross', 'X confirms (West)'), ('circle', 'O confirms (Japan)')]
+ON_OFF = [('1', 'On'), ('0', 'Off')]
 
 # Video. The renderer: RPCS3's RSX (ps3recomp gpu/, a build with
 # -DASCENSION_RPCS3_RSX=ON) or live draw. On macOS, Vulkan is MoltenVK and
@@ -48,26 +48,26 @@ RENDERERS = ([('rpcs3-vulkan', 'RPCS3 · Vulkan (MoltenVK)'),
              [('rpcs3-vulkan', 'RPCS3 · Vulkan'), ('rpcs3-opengl', 'RPCS3 · OpenGL')])
 RENDER_SCALES = [('100', '100% · 1280 x 720 (original)'), ('150', '150% · 1920 x 1080'),
                  ('200', '200% · 2560 x 1440'), ('300', '300% · 3840 x 2160')]
-ASPECTS = [('keep', 'Manter 16:9 (barras pretas)'), ('stretch', 'Esticar para a janela')]
-SCALE_FILTERS = [('linear', 'Suave (bilinear)'), ('nearest', 'Nítido (pixel)'),
+ASPECTS = [('keep', 'Keep 16:9 (black bars)'), ('stretch', 'Stretch to the window')]
+SCALE_FILTERS = [('linear', 'Smooth (bilinear)'), ('nearest', 'Sharp (pixel)'),
                  ('fsr', 'AMD FSR 1 (RPCS3)')]
-VSYNC_MODES = [('auto', 'Automático (o do renderizador)'), ('1', 'Ligado'), ('0', 'Desligado')]
-ANISO_LEVELS = [('0', 'O do jogo'), ('2', '2x'), ('4', '4x'), ('8', '8x'), ('16', '16x')]
+VSYNC_MODES = [('auto', "Automatic (the renderer's)"), ('1', 'On'), ('0', 'Off')]
+ANISO_LEVELS = [('0', "The game's"), ('2', '2x'), ('4', '4x'), ('8', '8x'), ('16', '16x')]
 
-# Controls: the PS3 pad's controls, grouped as the Controles page shows them,
+# Controls: the PS3 pad's controls, grouped as the Controls page shows them,
 # with what they do in the game where that is certain. The ids are
 # ps3recomp's (PS3_KEYMAP / PS3_PADMAP, libs/input/pad_keymap.h).
 CONTROL_GROUPS = [
-    ('Analógico esquerdo · andar', [('ls_up', 'Cima'), ('ls_down', 'Baixo'), ('ls_left', 'Esquerda'),
-                                     ('ls_right', 'Direita')]),
-    ('Analógico direito · esquiva', [('rs_up', 'Cima'), ('rs_down', 'Baixo'), ('rs_left', 'Esquerda'),
-                                      ('rs_right', 'Direita')]),
-    ('Botões', [('cross', '✕  Pular'), ('square', '□  Ataque leve'), ('triangle', '△  Ataque forte'),
-                ('circle', '○  Agarrar')]),
-    ('Ombros e gatilhos', [('l1', 'L1  Defender'), ('r1', 'R1'), ('l2', 'L2'), ('r2', 'R2'),
-                           ('l3', 'L3 (clique do analógico)'), ('r3', 'R3 (clique do analógico)')]),
-    ('Direcional', [('up', '↑  Cima'), ('down', '↓  Baixo'), ('left', '←  Esquerda'), ('right', '→  Direita')]),
-    ('Sistema', [('start', 'START  Pausa'), ('select', 'SELECT')]),
+    ('Left stick · walk', [('ls_up', 'Up'), ('ls_down', 'Down'), ('ls_left', 'Left'),
+                                     ('ls_right', 'Right')]),
+    ('Right stick · evade', [('rs_up', 'Up'), ('rs_down', 'Down'), ('rs_left', 'Left'),
+                                      ('rs_right', 'Right')]),
+    ('Buttons', [('cross', '✕  Jump'), ('square', '□  Light attack'), ('triangle', '△  Heavy attack'),
+                ('circle', '○  Grab')]),
+    ('Shoulders and triggers', [('l1', 'L1  Block'), ('r1', 'R1'), ('l2', 'L2'), ('r2', 'R2'),
+                           ('l3', 'L3 (stick click)'), ('r3', 'R3 (stick click)')]),
+    ('D-pad', [('up', '↑  Up'), ('down', '↓  Down'), ('left', '←  Left'), ('right', '→  Right')]),
+    ('System', [('start', 'START  Pause'), ('select', 'SELECT')]),
 ]
 PAD_CONTROLS = [c for _, items in CONTROL_GROUPS for c, _ in items if not c.startswith(('ls_', 'rs_'))]
 
@@ -93,11 +93,11 @@ PAD_DEFAULTS = {'up': 'up', 'down': 'down', 'left': 'left', 'right': 'right', 'c
                 'l3': 'ls', 'r3': 'rs', 'start': 'start', 'select': 'back'}
 PAD_BUTTONS = [('a', 'A  ·  ✕'), ('b', 'B  ·  ○'), ('x', 'X  ·  □'), ('y', 'Y  ·  △'),
                ('lb', 'LB  ·  L1'), ('rb', 'RB  ·  R1'), ('lt', 'LT  ·  L2'), ('rt', 'RT  ·  R2'),
-               ('ls', 'Clique esquerdo  ·  L3'), ('rs', 'Clique direito  ·  R3'),
+               ('ls', 'Left click  ·  L3'), ('rs', 'Right click  ·  R3'),
                ('back', 'View / Back  ·  Share'), ('start', 'Menu / Start  ·  Options'),
-               ('guide', 'Xbox / PS'), ('up', 'Direcional ↑'), ('down', 'Direcional ↓'),
-               ('left', 'Direcional ←'), ('right', 'Direcional →'), ('none', '(nenhum)')]
-DEADZONES = [(str(v), f'{v}%' + (' (padrão)' if v == 24 else '')) for v in (0, 5, 10, 15, 20, 24, 30, 40, 50)]
+               ('guide', 'Xbox / PS'), ('up', 'D-pad ↑'), ('down', 'D-pad ↓'),
+               ('left', 'D-pad ←'), ('right', 'D-pad →'), ('none', '(none)')]
+DEADZONES = [(str(v), f'{v}%' + (' (default)' if v == 24 else '')) for v in (0, 5, 10, 15, 20, 24, 30, 40, 50)]
 
 # Key names as ps3recomp reads them, from Tk's keysyms.
 TK_KEYS = {
@@ -113,14 +113,14 @@ TK_KEYS = {
     **{f'KP_{i}': f'Num{i}' for i in range(10)}, **{f'F{i}': f'F{i}' for i in range(1, 13)},
 }
 KEY_LABELS = {
-    'Space': 'Espaço', 'Escape': 'Esc', 'Up': '↑', 'Down': '↓', 'Left': '←', 'Right': '→',
-    'LShift': 'Shift esq.', 'RShift': 'Shift dir.', 'LCtrl': 'Control esq.', 'RCtrl': 'Control dir.',
-    'LAlt': 'Option esq.' if MAC else 'Alt esq.', 'RAlt': 'Option dir.' if MAC else 'Alt dir.',
+    'Space': 'Space', 'Escape': 'Esc', 'Up': '↑', 'Down': '↓', 'Left': '←', 'Right': '→',
+    'LShift': 'Left Shift', 'RShift': 'Right Shift', 'LCtrl': 'Left Control', 'RCtrl': 'Right Control',
+    'LAlt': 'Left Option' if MAC else 'Left Alt', 'RAlt': 'Right Option' if MAC else 'Right Alt',
     'Comma': ',', 'Period': '.', 'Slash': '/', 'Semicolon': ';', 'Quote': "'", 'LBracket': '[',
     'RBracket': ']', 'Minus': '-', 'Equals': '=', 'Grave': '`', 'Backslash': '\\',
     'PageUp': 'Page Up', 'PageDown': 'Page Down', 'CapsLock': 'Caps Lock',
-    'Mouse1': '🖱 Esquerdo', 'Mouse2': '🖱 Direito', 'Mouse3': '🖱 Meio', 'Mouse4': '🖱 Botão 4',
-    'Mouse5': '🖱 Botão 5', **{f'Num{i}': f'Num {i}' for i in range(10)},
+    'Mouse1': '🖱 Left', 'Mouse2': '🖱 Right', 'Mouse3': '🖱 Middle', 'Mouse4': '🖱 Button 4',
+    'Mouse5': '🖱 Button 5', **{f'Num{i}': f'Num {i}' for i in range(10)},
 }
 
 
@@ -142,7 +142,7 @@ DEFAULTS = {
     'mods_dir': str(ROOT / 'mods'), 'mods_enabled': [], 'mods_order': [],
     'game_exe': str(GAME_EXE), 'eboot': str(EBOOT),
     'disc_dir': '' if WINDOWS else str(WORK / 'disc'), 'disc_iso': '',
-    'backup_saves': '1', 'music': '1', 'extra_env': '',
+    'backup_saves': '1', 'music': '1', 'extra_env': '', 'ui_language': 'auto',
 }
 
 

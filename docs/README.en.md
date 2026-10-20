@@ -32,7 +32,7 @@ October 2026, on Windows:
 - **From boot to the first level:** intro screens, loading, first-use menus, the opening cinematic (picture and sound in sync), the main menu and the first level, with Kratos in chains.
 - **Two renderers:** [RPCS3](https://github.com/RPCS3/rpcs3)'s RSX (Vulkan or OpenGL), which draws the game correctly, and the project's own *live draw* (D3D12).
 - **Performance:** the main menu runs at ~28 fps; the first level still at ~9 fps. The limit is the recompiled SPU code, not the graphics card.
-- **A launcher** with video, controls, language, subtitles and mods; **Brazilian Portuguese**, voices and text, built from your own US disc.
+- **A launcher** in English, Portuguese and Spanish, with video, controls, language, subtitles and mods; **Brazilian Portuguese**, voices and text, built from your own US disc.
 
 No release yet. The milestones are in [MILESTONES.md](MILESTONES.md).
 

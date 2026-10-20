@@ -9,6 +9,7 @@ import threading
 import time
 from pathlib import Path
 from .config import CONFIG_DIR, HERE, LANGUAGES, MAC, ROOT, WINDOWS, asset
+from .i18n import current, tr
 
 
 def save_dir():
@@ -45,6 +46,18 @@ def read_mod_json(folder):
         return {}
 
 
+def mod_text(meta, field):
+    """A mod.json field in the launcher's language: "translations": {"en":
+    {"name": ..., "description": ...}} beside the field itself."""
+    lang = current()
+    table = meta.get('translations') if isinstance(meta.get('translations'), dict) else {}
+    for code in (lang, lang.split('-')[0]):
+        value = (table.get(code) or {}).get(field) if isinstance(table.get(code), dict) else None
+        if value:
+            return str(value)
+    return str(meta.get(field, ''))
+
+
 def all_mods(s):
     """Every mod the launcher knows, in priority order (first wins): the ones
     that come with Ascension (mods-builtin, ids '@<folder>') and the user's
@@ -67,8 +80,8 @@ def all_mods(s):
         path, builtin = found[mid]
         meta = read_mod_json(path)
         mods.append({'id': mid, 'path': path, 'builtin': builtin, 'meta': meta,
-                     'name': meta.get('name') or path.name,
-                     'description': meta.get('description', '')})
+                     'name': mod_text(meta, 'name') or path.name,
+                     'description': mod_text(meta, 'description')})
     return mods
 
 
@@ -159,11 +172,12 @@ def disc_problem(s):
     try:
         info = read_sfo(sfo)
     except (OSError, ValueError, struct.error):
-        return f'o PARAM.SFO do disco não pôde ser lido ({sfo})'
+        return tr("the disc's PARAM.SFO could not be read ({path})", path=sfo)
     title = str(info.get('TITLE_ID', ''))
     if title != GAME_ID:
         name = str(info.get('TITLE', '')).replace('\n', ' ')
-        return f'o disco é {title or "?"}{" (" + name + ")" if name else ""}, não a versão europeia {GAME_ID}'
+        title = f'{title or "?"} ({name})' if name else (title or '?')
+        return tr('the disc is {title}, not the European release {id}', title=title, id=GAME_ID)
     return None
 
 
@@ -190,7 +204,7 @@ def release_disc(root):
         subprocess.run(['hdiutil', 'detach', str(root)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-MODS_LOCK = threading.Lock()     # PLAY and the build after Salvar write the same archives
+MODS_LOCK = threading.Lock()     # PLAY and the build after Save write the same archives
 
 
 def compose_mods(s, log=lambda m: None):
@@ -399,12 +413,12 @@ def restore_saves(backup):
 def missing(s):
     out = []
     if not Path(s['game_exe']).is_file():
-        out.append('o executável do jogo (' + s['game_exe'] + ')')
+        out.append(tr("the game's executable ({path})", path=s['game_exe']))
     if not Path(s['eboot']).is_file():
-        out.append('o EBOOT.ELF do disco (' + s['eboot'] + ')')
+        out.append(tr("the disc's EBOOT.ELF ({path})", path=s['eboot']))
     root = disc_root(s)
     if root and not (root / 'PS3_GAME').is_dir() and not (MAC and Path(s.get('disc_iso') or '-').is_file()):
-        out.append('o disco (' + str(root) + ('; ou a imagem .iso' if MAC else '') + ')')
+        out.append(tr('the disc ({path}; or the .iso image)' if MAC else 'the disc ({path})', path=root))
     return out
 
 
@@ -412,17 +426,17 @@ def prepare_game(s, status=lambda m: None):
     """Everything before the game starts (it can take a while: the disc,
     the saves, the mods' archives). Returns the environment and the disc
     folder it mounted, if any."""
-    status('Preparando o jogo…')
+    status(tr('Preparing the game…'))
     mounted = ensure_disc(s)
     problem = disc_problem(s)
     if problem:
         release_disc(mounted)
         raise OSError(problem[0].upper() + problem[1:] + '.')
     if s.get('backup_saves') == '1':
-        status('Copiando os saves…')
+        status(tr('Copying the saves…'))
         backup_saves()
     apply_save_settings(s)
-    status('Preparando os mods…')
+    status(tr('Preparing the mods…'))
     return game_environment(s), mounted
 
 

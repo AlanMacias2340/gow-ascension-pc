@@ -32,7 +32,7 @@ Outubro de 2026, no Windows:
 - **Do boot ao primeiro nível:** telas de abertura, carregamento, menus de primeiro uso, cinemática de abertura (imagem e som sincronizados), menu principal e o primeiro nível, com o Kratos acorrentado.
 - **Dois renderizadores:** o RSX do [RPCS3](https://github.com/RPCS3/rpcs3) (Vulkan ou OpenGL), que desenha o jogo corretamente, e o *live draw* próprio do projeto (D3D12).
 - **Desempenho:** menu principal a ~28 fps; o primeiro nível ainda roda a ~9 fps. O limite é o código das SPUs recompilado, não a placa de vídeo.
-- **Launcher** com vídeo, controles, idioma, legendas e mods; **português do Brasil** com vozes e textos, montado a partir do seu disco americano.
+- **Launcher** em português, inglês e espanhol, com vídeo, controles, idioma, legendas e mods; **português do Brasil** com vozes e textos, montado a partir do seu disco americano.
 
 Ainda não há release. Os marcos estão em [docs/MILESTONES.md](docs/MILESTONES.md).
 

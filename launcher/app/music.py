@@ -7,6 +7,7 @@ import threading
 import time
 from pathlib import Path
 from .config import CONFIG_DIR, MAC, WINDOWS, asset
+from .i18n import tr
 
 
 class Music:
@@ -30,15 +31,15 @@ class Music:
             if self.ok:
                 self.send('setaudio bgm volume to 350')
             elif not self.ok:
-                self.error = 'não abriu music.mp3'
+                self.error = tr('could not open music.mp3')
         elif MAC and path and self.player:
             self.ok = True
             if self._cached_aac().is_file() and self._cached_aac().stat().st_mtime >= path.stat().st_mtime:
                 self.path, self._converted = self._cached_aac(), True   # afplay rejected this MP3 before
         elif MAC and not path:
-            self.error = 'sem music.mp3'
+            self.error = tr('no music.mp3')
         elif MAC:
-            self.error = 'afplay não encontrado'
+            self.error = tr('afplay not found')
 
     def send(self, cmd):
         return self.mci(cmd, None, 0, None)
@@ -106,7 +107,7 @@ class Music:
                 if fails == 1 and self._convert_once():
                     continue
                 text = err.decode('utf-8', 'replace').strip()
-                self.error = (text or f'afplay saiu com código {code}')[:80]
+                self.error = (text or tr('afplay exited with code {code}', code=code))[:80]
                 self.want = False
                 return
             time.sleep(0.2)
