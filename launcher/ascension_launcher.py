@@ -4,7 +4,7 @@ Settings for the recompiled game (window, video, controls, language, mods,
 ...), kept in %APPDATA%\\ascension-launcher\\settings.json (macOS:
 ~/Library/Application Support/ascension-launcher) and handed to the game as the
 environment switches ps3recomp reads. PLAY starts build/win/AscensionRecomp.exe
-(macOS: build/AscensionRecomp) with the disc's EBOOT.ELF; `--play` does the
+(macOS: build/mac/AscensionRecomp) with the disc's EBOOT.ELF; `--play` does the
 same without the window.
 
 Artwork (backgrounds, logo, icon, music) is not part of the repository: it is
@@ -16,7 +16,6 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import webbrowser
@@ -338,10 +337,11 @@ def disc_usrdir(s):
 
 
 def ensure_disc(s):
-    """macOS: mount the .iso read-only at the disc folder if it is not there yet."""
+    """macOS: mount the .iso read-only at the disc folder if it is not there yet.
+    Returns the folder when this call mounted it (release_disc undoes that)."""
     root = disc_root(s)
     if not root or (root / 'PS3_GAME').is_dir():
-        return
+        return None
     iso = s.get('disc_iso', '')
     if MAC and iso and Path(iso).is_file():
         root.mkdir(parents=True, exist_ok=True)
@@ -349,6 +349,14 @@ def ensure_disc(s):
                            capture_output=True, text=True)
         if r.returncode != 0:
             raise OSError('hdiutil: ' + (r.stderr or r.stdout).strip())
+        return root
+    return None
+
+
+def release_disc(root):
+    """Unmount a disc ensure_disc mounted; a busy one stays (nothing is lost)."""
+    if root and MAC:
+        subprocess.run(['hdiutil', 'detach', str(root)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def compose_mods(s, log=lambda m: None):
@@ -494,13 +502,29 @@ def apply_save_settings(s):
     return False
 
 
+def tree_signature(folder):
+    """Relative path, size and mtime of every file (copytree keeps mtimes)."""
+    out = []
+    for dirpath, _dirs, files in os.walk(folder):
+        for name in files:
+            st = (Path(dirpath) / name).stat()
+            out.append((os.path.relpath(Path(dirpath) / name, folder), st.st_size, int(st.st_mtime)))
+    return sorted(out)
+
+
 def backup_saves():
+    """A copy of the saves, unless the newest backup already has them as they
+    are: starting the game ten times without playing keeps the older ones."""
     src = save_dir()
     if not src.is_dir() or not any(src.iterdir()):
         return None
-    dst = ROOT / 'gamedata' / 'save-backups' / time.strftime('%Y%m%d-%H%M%S')
+    folder = ROOT / 'gamedata' / 'save-backups'
+    backups = sorted(folder.iterdir()) if folder.is_dir() else []
+    if backups and tree_signature(backups[-1]) == tree_signature(src):
+        return backups[-1]
+    dst = folder / time.strftime('%Y%m%d-%H%M%S')
     shutil.copytree(src, dst)
-    backups = sorted((ROOT / 'gamedata' / 'save-backups').iterdir())
+    backups = sorted(folder.iterdir())
     for old in backups[:-10]:                       # keep the last ten
         shutil.rmtree(old, ignore_errors=True)
     return dst
@@ -518,20 +542,36 @@ def missing(s):
     return out
 
 
-def start_game(s, log_path, parent=None):
-    """Start the game; with `parent` (a window handle) it renders inside that window."""
-    ensure_disc(s)
+def prepare_game(s, status=lambda m: None):
+    """Everything before the game starts (it can take a while: the disc,
+    the saves, the mods' archives). Returns the environment and the disc
+    folder it mounted, if any."""
+    status('Preparando o jogo…')
+    mounted = ensure_disc(s)
     if s.get('backup_saves') == '1':
+        status('Copiando os saves…')
         backup_saves()
     apply_save_settings(s)
+    status('Preparando os mods…')
+    return game_environment(s), mounted
+
+
+def start_game(s, env, log_path, parent=None):
+    """Start the game; with `parent` (a window handle) it renders inside that
+    window. The previous run's log is kept as last_run.prev.log."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    if log_path.is_file():
+        log_path.replace(log_path.with_suffix('.prev.log'))
     log = open(log_path, 'w', encoding='utf-8', errors='replace')
     flags = subprocess.CREATE_NO_WINDOW if WINDOWS else 0
-    env = game_environment(s)
     if parent:
-        env['PS3_PARENT_HWND'] = str(parent)
-    return subprocess.Popen([s['game_exe'], s['eboot']], cwd=str(ROOT), env=env,
-                            stdout=log, stderr=subprocess.STDOUT, creationflags=flags), log
+        env = {**env, 'PS3_PARENT_HWND': str(parent)}
+    try:
+        return subprocess.Popen([s['game_exe'], s['eboot']], cwd=str(ROOT), env=env,
+                                stdout=log, stderr=subprocess.STDOUT, creationflags=flags), log
+    except BaseException:
+        log.close()
+        raise
 
 
 class Music:
@@ -547,6 +587,7 @@ class Music:
         self.want = False
         self._converted = False
         self._lock = threading.Lock()
+        self._wake = threading.Event()
         self.player = '/usr/bin/afplay' if Path('/usr/bin/afplay').is_file() else shutil.which('afplay')
         if WINDOWS and path:
             self.mci = ctypes.windll.winmm.mciSendStringW
@@ -557,6 +598,8 @@ class Music:
                 self.error = 'não abriu music.mp3'
         elif MAC and path and self.player:
             self.ok = True
+            if self._cached_aac().is_file() and self._cached_aac().stat().st_mtime >= path.stat().st_mtime:
+                self.path, self._converted = self._cached_aac(), True   # afplay rejected this MP3 before
         elif MAC and not path:
             self.error = 'sem music.mp3'
         elif MAC:
@@ -574,16 +617,22 @@ class Music:
             except OSError:
                 pass
 
+    @staticmethod
+    def _cached_aac():
+        return CONFIG_DIR / 'music.m4a'
+
     def _convert_once(self):
-        """afplay rejects some MP3s ('fmt?'). One conversion to AAC, then retry."""
+        """afplay rejects some MP3s ('fmt?'). One conversion to AAC, kept for
+        the next start, then retry."""
         if self._converted:
             return False
         self._converted = True
         afconvert = '/usr/bin/afconvert'
         if not Path(afconvert).is_file():
             return False
-        out = Path(tempfile.gettempdir()) / 'ascension-launcher-music.m4a'
+        out = self._cached_aac()
         try:
+            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
             r = subprocess.run([afconvert, '-f', 'm4af', '-d', 'aac', str(self.path), str(out)],
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         except OSError:
@@ -597,7 +646,8 @@ class Music:
         fails = 0
         while not self.closed:
             if not self.want:
-                time.sleep(0.05)
+                self._wake.wait()
+                self._wake.clear()
                 continue
             started = time.monotonic()
             try:
@@ -634,6 +684,7 @@ class Music:
             self.send('play bgm repeat')
             return
         self.want = True
+        self._wake.set()
         if not self.thread:
             self.thread = threading.Thread(target=self.loop, daemon=True)
             self.thread.start()
@@ -655,6 +706,7 @@ class Music:
         else:
             self.closed = True
             self.want = False
+            self._wake.set()
             self._stop_proc()
 
 
@@ -701,6 +753,8 @@ class Launcher:
         self.padmap = dict(self.s['padmap'])
         self.capturing = None
         self.process = None
+        self.preparing = False
+        self.mounted = None        # the disc folder the launcher mounted (macOS)
         if MAC:   # Tk on macOS counts 72 points to the inch: the sizes below assume Windows' 96
             root.tk.call('tk', 'scaling', 1.33)
         self.heading = 'Georgia'
@@ -1511,8 +1565,8 @@ class Launcher:
                      'o que o PS3 fazia no sistema (vídeo RSX, áudio, arquivos, SPURS) é reimplementado pelo '
                      'runtime do ps3recomp. Não é um emulador e não traz nada do jogo: você precisa do seu '
                      'próprio disco.')
-        self.note(f, 'Estado: experimento. A abertura, os menus de primeiro uso e a cinemática de abertura '
-                     'funcionam; o menu principal ainda está lento. Veja o andamento no repositório.')
+        self.note(f, 'Estado: experimento. O jogo vai do boot ao primeiro nível, mas ainda lento (menu a ~28 fps, '
+                     'primeiro nível a ~9 fps). Veja o andamento no repositório.')
         self.section(f, 'Links')
         for title, url in (('Este projeto', 'https://github.com/arnaldolima1/gow-ascension-pc'),
                            ('Marcos', 'https://github.com/arnaldolima1/gow-ascension-pc/blob/main/docs/MILESTONES.md'),
@@ -1544,6 +1598,10 @@ class Launcher:
         if self.var('music').get() != ('1' if self.music_on() else '0'):
             self.set_music(self.var('music').get() == '1')
         self.refresh_music_label()
+        paths = tuple(self.vars[k].get() for k in ('game_exe', 'eboot', 'disc_dir', 'disc_iso') if k in self.vars)
+        if paths != getattr(self, 'watched_paths', paths) and not (self.process or self.preparing):
+            self.refresh_status()
+        self.watched_paths = paths
         self.root.after(400, self.watch_changes)
 
     def save(self):
@@ -1602,7 +1660,9 @@ class Launcher:
             subprocess.Popen(['open' if MAC else 'xdg-open', str(path)])
 
     def play(self):
-        if self.process:
+        """The slow part (disc, saves, mods) runs in a thread with its steps in
+        the status bar; the window gives way to the game only once it starts."""
+        if self.process or self.preparing:
             return
         if self.gather() != self.saved:
             self.save()
@@ -1610,17 +1670,38 @@ class Launcher:
         if gone:
             self.messagebox.showerror(APP_NAME, 'Não encontrei ' + ' e '.join(gone) + '.\nAjuste em Avançado.')
             return
+        self.preparing = True
+        self.play_button.configure(state='disabled')
+        s = dict(self.s)
+
+        def work():
+            try:
+                env, mounted = prepare_game(s, status=lambda m: self.root.after(0, self.refresh_status, m))
+                self.root.after(0, self.launch, env, mounted)
+            except Exception as e:
+                self.root.after(0, self.launch_failed, str(e) or type(e).__name__)
+        threading.Thread(target=work, daemon=True).start()
+
+    def launch(self, env, mounted):
+        self.mounted = self.mounted or mounted
         host = self.enter_game_view()
         try:
-            self.process, self.log = start_game(self.s, self.log_path(), parent=host.winfo_id() if host else None)
-        except OSError as e:
+            self.process, self.log = start_game(self.s, env, self.log_path(),
+                                                parent=host.winfo_id() if host else None)
+        except Exception as e:
             self.leave_game_view()
-            self.messagebox.showerror(APP_NAME, f'O jogo não abriu:\n{e}')
+            self.launch_failed(str(e) or type(e).__name__)
             return
+        self.preparing = False
         self.music.pause()
-        self.play_button.configure(state='disabled')
         self.refresh_status('Jogo em execução…')
         threading.Thread(target=self.wait_game, daemon=True).start()
+
+    def launch_failed(self, error):
+        self.preparing = False
+        self.play_button.configure(state='normal')
+        self.refresh_status()
+        self.messagebox.showerror(APP_NAME, f'O jogo não abriu:\n{error}')
 
     def enter_game_view(self):
         """The launcher's window becomes the game's: the pages give way to a
@@ -1674,25 +1755,39 @@ class Launcher:
 
     def wait_game(self):
         code = self.process.wait()
-        self.root.after(0, self.game_ended, code)
+        try:
+            self.root.after(0, self.game_ended, code)
+        except RuntimeError:     # the launcher closed first
+            pass
 
     def game_ended(self, code):
         self.log.close()
         self.process = None
         self.play_button.configure(state='normal')
         self.leave_game_view()
-        self.refresh_status('Jogo fechado.' if code == 0 else f'O jogo terminou com código {code}: veja o último log em Avançado.')
         if self.music_on():
             self.music.play()
+        if code == 0:
+            self.refresh_status('Jogo fechado.')
+            return
+        self.refresh_status(f'O jogo terminou com código {code}.')
+        if self.messagebox.askyesno(APP_NAME, f'O jogo terminou com código {code}.\nAbrir o log desta execução?'):
+            self.open_path(self.log_path())
 
     def close(self):
         if self.process:
             if not self.messagebox.askyesno(APP_NAME, 'Fechar o jogo?'):
                 return
             self.process.terminate()
+            try:
+                self.process.wait(5)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+            self.log.close()
         if self.gather() != self.saved and self.messagebox.askyesno(APP_NAME, 'Salvar as alterações antes de sair?'):
             self.save()
         self.music.close()
+        release_disc(self.mounted)
         self.root.destroy()
 
 
@@ -1703,9 +1798,13 @@ def main():
         if gone:
             print('Falta: ' + '; '.join(gone))
             return 1
-        process, log = start_game(s, ROOT / 'build' / 'logs' / 'last_run.log')
-        code = process.wait()
-        log.close()
+        env, mounted = prepare_game(s, status=print)
+        try:
+            process, log = start_game(s, env, ROOT / 'build' / 'logs' / 'last_run.log')
+            code = process.wait()
+            log.close()
+        finally:
+            release_disc(mounted)
         return code
     if WINDOWS:
         try:  # the taskbar shows this window's icon, not Python's; sharp text on scaled displays

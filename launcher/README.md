@@ -2,9 +2,9 @@
 
 `ascension_launcher.py` (Python 3 with Tk, and Pillow) sets up the game and starts it. Open it with `scripts\windows\launcher.ps1`, `scripts/mac/launcher.sh` or `scripts/linux/launcher.sh`, or `python launcher/ascension_launcher.py`; `--play` starts the game with the saved settings and no window.
 
-On macOS: `brew install python@3.12 python-tk@3.12`, a venv with `pip install pillow`, then `scripts/mac/launcher.sh`. The game opens a window of its own (the launcher hides until it closes), the disc `.iso` set in Advanced is mounted read-only at `work/disc` when needed, the executable is `build/mac/AscensionRecomp` (`scripts/mac/build.sh`) and the `EBOOT.ELF` is read from `input/`. Music plays through `/usr/bin/afplay`.
+On macOS (paused, like the rest of the macOS support): `brew install python@3.12 python-tk@3.12`, a venv with `pip install pillow`, then `scripts/mac/launcher.sh`. The game opens a window of its own (the launcher hides until it closes), the disc `.iso` set in Advanced is mounted read-only at `work/disc` when needed, the executable is `build/mac/AscensionRecomp` (`scripts/mac/build.sh`) and the `EBOOT.ELF` is read from `input/`. Music plays through `/usr/bin/afplay`.
 
-Pages: Home (cross-fading artwork, quick settings), Video, Controls, Game, Mods, Advanced. Settings are kept in `%APPDATA%\ascension-launcher\settings.json` (macOS: `~/Library/Application Support/ascension-launcher/settings.json`) and reach the game as ps3recomp environment switches:
+Pages: Home (cross-fading artwork, quick settings), Video, Controls, Game, Mods, Advanced. Settings are kept in `%APPDATA%\ascension-launcher\settings.json` (macOS: `~/Library/Application Support/ascension-launcher/settings.json`, Linux: `~/.config/ascension-launcher/settings.json`) and reach the game as ps3recomp environment switches:
 
 | Setting | Switch |
 |---|---|
@@ -36,7 +36,7 @@ Mods come from two places, listed together in one priority order (first wins): `
 
 Brazilian Portuguese needs the PT-BR mod, which the Mods page builds from your own US disc (an `.iso` or its extracted folder) with `tools/make_ptbr_mod.py`; with it on, the language list offers Português (Brasil).
 
-Saves are copied to `gamedata\save-backups\` before each start (the last ten are kept). The run's output goes to `build\logs\last_run.log`.
+Saves are copied to `gamedata\save-backups\` before each start, unless the newest copy already matches them (the last ten are kept). The run's output goes to `build\logs\last_run.log`, the run before it to `last_run.prev.log`; when the game ends with an error the launcher offers to open the log. PLAY prepares the disc, saves and mods in the background, with each step in the status bar; on macOS the `.iso` the launcher mounted is unmounted when it closes.
 
 The artwork and music are not in the repository. The launcher reads `background*.jpg/png`, `logo.png`, `icon-2.png` and `music.mp3` from `launcher\assets\` or `..\work\data\launcher\`; without them it still works, plainer. `Cinzel-Black.ttf` is the Cinzel typeface (SIL Open Font License, `OFL-Cinzel.txt`).
 
