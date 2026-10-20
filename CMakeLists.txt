@@ -143,6 +143,31 @@ option(PORT_ENABLE_SPU "Compile and register the title's lifted SPU images" ON)
 set(SPU_SOURCES "")
 if(PORT_ENABLE_SPU)
     file(GLOB SPU_LIFTED CONFIGURE_DEPENDS "${SPU_DIR}/*/spu_recomp.c")
+    # Keep native SPU work outside the generated lift. This build variant
+    # preserves the reference routine for GOWA_NATIVE_VERTEX=check and runs
+    # the original unless GOWA_NATIVE_VERTEX=1 is explicitly selected.
+    set(DRAWCMD_LIFT "${SPU_DIR}/jobmod_7868e9b847d1_e6D98/spu_recomp.c")
+    set(DRAWCMD_HLE "${PS3RECOMP_DIR}/libs/spu_hle/gowa_drawcmd")
+    if(EXISTS "${DRAWCMD_LIFT}" AND EXISTS "${DRAWCMD_HLE}/prepare_module.py")
+        find_package(Python3 COMPONENTS Interpreter REQUIRED)
+        set(DRAWCMD_NATIVE "${CMAKE_CURRENT_BINARY_DIR}/spu_native/drawcmd.c")
+        add_custom_command(OUTPUT "${DRAWCMD_NATIVE}"
+            BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/spu_native/stage_adapters.inc"
+                       "${CMAKE_CURRENT_BINARY_DIR}/spu_native/stage_reference.inc"
+                       "${CMAKE_CURRENT_BINARY_DIR}/spu_native/field_adapters.inc"
+                       "${CMAKE_CURRENT_BINARY_DIR}/spu_native/field_reference.inc"
+            COMMAND "${Python3_EXECUTABLE}" "${DRAWCMD_HLE}/prepare_module.py"
+                    "${DRAWCMD_LIFT}" "${DRAWCMD_NATIVE}"
+            DEPENDS "${DRAWCMD_LIFT}" "${DRAWCMD_HLE}/prepare_module.py"
+                    "${DRAWCMD_HLE}/vertex_wrapper.inc" "${DRAWCMD_HLE}/vertex_accumulate.h"
+                    "${DRAWCMD_HLE}/prepare_stage.py" "${DRAWCMD_HLE}/vertex_blend.h"
+                    "${DRAWCMD_HLE}/vertex_stage.h" "${DRAWCMD_HLE}/stage_wrapper.inc"
+                    "${DRAWCMD_HLE}/prepare_field.py" "${DRAWCMD_HLE}/field_stage.h"
+                    "${DRAWCMD_HLE}/field_wrapper.inc"
+            COMMENT "Preparing module 218 with selectable native vertex accumulation")
+        list(REMOVE_ITEM SPU_LIFTED "${DRAWCMD_LIFT}")
+        list(APPEND SPU_LIFTED "${DRAWCMD_NATIVE}")
+    endif()
     if(SPU_LIFTED)
         list(LENGTH SPU_LIFTED SPU_IMAGE_COUNT)
         message(STATUS "Lifted SPU:      ${SPU_IMAGE_COUNT} image(s)")

@@ -10,19 +10,28 @@ usage: python tools/log_summary.py build/logs/<run>.log
 """
 import collections
 import re
+import statistics
 import sys
 
 
 def main(path):
     lines = open(path, encoding="utf-8", errors="ignore").read().splitlines()
 
-    fps = [float(m.group(1)) for l in lines for m in [re.search(r"\[fps\] ([\d.]+)", l)] if m]
+    fps = [float(m.group(1)) for l in lines
+           for m in [re.search(r"(?:\[fps\] |\[perf\] fps=)([\d.]+)", l)] if m]
     print(f"fps ({len(fps)} x 5 s):", " ".join(f"{x:.0f}" for x in fps))
     after = [x for x in fps if x < 100]          # the loading screens run at ~180
     if fps and not after:
         print("  -> never left the loading screens: the end-of-loading stall (retry)")
     elif after:
         print(f"  after loading: min {min(after):.0f}  median {sorted(after)[len(after)//2]:.0f}  max {max(after):.0f}")
+
+    stable = [float(m.group(1)) for l in lines
+              for m in [re.search(r"\[perf\] fps=([\d.]+) spu=(\d+) hold=(\d+)", l)]
+              if m and int(m.group(2)) >= 75 and int(m.group(3)) == 0]
+    if stable:
+        print(f"  SPU >=75%, Hold=0 ({len(stable)} windows): median {statistics.median(stable):.2f} FPS;"
+              " moving scene, not a fixed-view benchmark")
 
     vt = [(int(m.group(1)), int(m.group(2))) for l in lines
           for m in [re.search(r"\[vdec-time\] t=(\d+)us pts=(\d+)", l)] if m]
@@ -79,6 +88,7 @@ def main(path):
         "REJECTED": r"REJECTED", "HALT": r"HALT", "BRANCH-TO-0": r"BRANCH-TO-0",
         "UNSUPPORTED executed": r"\[spu\] UNSUPPORTED", "no free code span": r"no free resident code span",
         "WAIT_SIGNAL sleeping": r"sleeping \d+s in WAIT_SIGNAL", "exceptions": r"EXCEPTION|Access violation",
+        "FIFO errors": r"FIFO error|malformed method|Invalid RSX method|FATAL|Assertion Failed",
     }
     found = {k: sum(1 for l in lines if re.search(p, l)) for k, p in checks.items()}
     found = {k: v for k, v in found.items() if v}
