@@ -46,8 +46,8 @@ RENDERERS = ([('rpcs3-vulkan', 'RPCS3 · Vulkan (MoltenVK)'),
              [('rpcs3-vulkan', 'RPCS3 · Vulkan'), ('rpcs3-opengl', 'RPCS3 · OpenGL'),
               ('livedraw', 'Live draw · Direct3D 12')] if WINDOWS else
              [('rpcs3-vulkan', 'RPCS3 · Vulkan'), ('rpcs3-opengl', 'RPCS3 · OpenGL')])
-RENDER_SCALES = [('100', '100% · 1280 x 720 (original)'), ('150', '150% · 1920 x 1080'),
-                 ('200', '200% · 2560 x 1440'), ('300', '300% · 3840 x 2160')]
+RENDER_SCALES = [('100', 'HD · 1280 x 720 (original)'), ('150', 'Full HD · 1920 x 1080'),
+                 ('200', '2K · 2560 x 1440'), ('300', '4K · 3840 x 2160')]
 ASPECTS = [('keep', 'Keep 16:9 (black bars)'), ('stretch', 'Stretch to the window')]
 SCALE_FILTERS = [('linear', 'Smooth (bilinear)'), ('nearest', 'Sharp (pixel)'),
                  ('fsr', 'AMD FSR 1 (RPCS3)')]
