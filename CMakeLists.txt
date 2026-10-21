@@ -156,6 +156,7 @@ if(PORT_ENABLE_SPU)
                        "${CMAKE_CURRENT_BINARY_DIR}/spu_native/stage_reference.inc"
                        "${CMAKE_CURRENT_BINARY_DIR}/spu_native/field_adapters.inc"
                        "${CMAKE_CURRENT_BINARY_DIR}/spu_native/field_reference.inc"
+                       "${CMAKE_CURRENT_BINARY_DIR}/spu_native/front_fused.inc"
             COMMAND "${Python3_EXECUTABLE}" "${DRAWCMD_HLE}/prepare_module.py"
                     "${DRAWCMD_LIFT}" "${DRAWCMD_NATIVE}"
             DEPENDS "${DRAWCMD_LIFT}" "${DRAWCMD_HLE}/prepare_module.py"
@@ -163,7 +164,8 @@ if(PORT_ENABLE_SPU)
                     "${DRAWCMD_HLE}/prepare_stage.py" "${DRAWCMD_HLE}/vertex_blend.h"
                     "${DRAWCMD_HLE}/vertex_stage.h" "${DRAWCMD_HLE}/stage_wrapper.inc"
                     "${DRAWCMD_HLE}/prepare_field.py" "${DRAWCMD_HLE}/field_stage.h"
-                    "${DRAWCMD_HLE}/field_wrapper.inc"
+                    "${DRAWCMD_HLE}/field_wrapper.inc" "${DRAWCMD_HLE}/job_native.h"
+                    "${DRAWCMD_HLE}/fuse_segment.py" "${DRAWCMD_HLE}/front_set.txt"
             COMMENT "Preparing module 218 with selectable native vertex accumulation")
         list(REMOVE_ITEM SPU_LIFTED "${DRAWCMD_LIFT}")
         list(APPEND SPU_LIFTED "${DRAWCMD_NATIVE}")
@@ -216,11 +218,26 @@ add_executable(${PROJECT_NAME}
 #                          SPU sources are small and decode-hot, so they get
 #                          full optimization. The last -O on the line wins.
 if(SPU_SOURCES)
+    # SPU_XFLOAT_APPROX: float add/sub/mul/fma are one SSE instruction with no
+    # SPU extended-range check, as RPCS3's default "Approximate" xfloat (see
+    # spu_helpers.h). 1.64x on module 218's vertex stage, outputs unchanged on
+    # its 48 captures.
+    option(ASCENSION_SPU_XFLOAT_APPROX "Lifted SPU float ops without the extended-range check" ON)
+    # SPU_LS_NO_HOOKS: no LS diagnostics in lifted code (SPU_LS_WATCH,
+    # SPU_SMC_WATCH, SPU_LS_LOWREAD stop working there; spu_context.h).
+    option(ASCENSION_SPU_LS_HOOKS "Keep the LS diagnostic hooks in lifted SPU code" OFF)
+    set(SPU_DEFS "SPU_USE_DISPATCH_MT;SPU_ASSUME_SPU_FP")
+    if(ASCENSION_SPU_XFLOAT_APPROX)
+        string(APPEND SPU_DEFS ";SPU_XFLOAT_APPROX")
+    endif()
+    if(NOT ASCENSION_SPU_LS_HOOKS)
+        string(APPEND SPU_DEFS ";SPU_LS_NO_HOOKS")
+    endif()
     set_source_files_properties(${SPU_SOURCES} PROPERTIES
         INCLUDE_DIRECTORIES "${PS3RECOMP_DIR}/runtime/spu"
         # SPU_ASSUME_SPU_FP: lifted code always runs in the SPU float mode
         # (spu_run_with_halt), so the float ops skip reading MXCSR each time.
-        COMPILE_DEFINITIONS "SPU_USE_DISPATCH_MT;SPU_ASSUME_SPU_FP")
+        COMPILE_DEFINITIONS "${SPU_DEFS}")
     if(NOT MSVC OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         # SSE4.1 as well (any x86-64 since ~2008): spu_shufb is pshufb/blendv
         # only under __SSE4_1__, and without it every shufb in lifted code is
