@@ -33,7 +33,6 @@ Needs `brew install cmake ninja sdl2 glslang spirv-cross ffmpeg`, and for the GP
 | `windows/launcher.ps1 [-Play]` | The launcher. |
 | `windows/snap.ps1 -Out x.png` | Saves the game window as a PNG, even behind other windows. |
 | `windows/relift.ps1 jobmods\|fragments` | Re-lifts SPU job modules or fragments. `-Only <sha>` lifts one module. |
-| `windows/test-drawcmd.ps1 [-Stage\|-Field] [-NoFma]` | Differential tests of module 218's native code against the lift. |
 | `windows/test-fifo.ps1` | FIFO drain and recovery regression, headless. |
 | `windows/test-spu-launch.ps1`, `test-spu-resolver.ps1` | SPU launch hooks and resolver tests, without the game. |
 
