@@ -64,10 +64,11 @@ def main():
     with open(tmp, "w", encoding="latin1") as f:
         f.write(raw)
     res = subprocess.run([sys.executable, "-I", os.path.join(os.path.dirname(__file__), "maprva.py"), a.map, tmp],
-                         capture_output=True, text=True).stdout
+                         capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
     os.remove(tmp)
     if a.out:
-        with open(a.out, "w") as f:
+        # utf-8 explicitly: the console code page cannot encode every symbol
+        with open(a.out, "w", encoding="utf-8", errors="replace") as f:
             f.write(res)
     # Top of each thread's exclusive list.
     block, take = [], 0
