@@ -66,7 +66,13 @@
 //                      slower than a real SPU, and one after the other they
 //                      held the menu at 14 fps; shared, it runs at ~33. The
 //                      Wws manager keeps a progress lane per SPU, so a list
-//                      is built to be shared.
+//                      is built to be shared. In the first level wid 13 ran
+//                      on one SPU half the time while the PPU waited; up to
+//                      three: ~14.5 -> ~15.4 fps. Six on every list hung it.
+//   SPURS_IDLE_BACKOFF_MAX  0: a workload that ran and found nothing is not
+//                      skipped for up to 16 kernel passes (~16 ms) after;
+//                      work the PPU stores meanwhile waited for it. First
+//                      level ~13.4 -> ~14.5 fps.
 //   SPU_REJOIN         the interpreter rejoins job module 204's lifted code
 //                      (jobmod_31107645db58, the level-load job) between LS
 //                      0x9700 and 0x1C000, which it otherwise only does with
@@ -126,7 +132,8 @@ struct AscensionDefaults {
         set_default("GCM_ROUND_GATE", "9BAC30");
         set_default("GCM_ROUND_RING", "1101ED00,18");
         set_default("SPURS_READY_LEVEL", "1");
-        set_default("SPURS_MAXCONT", "3=5,15=5,16=5,17=5");
+        set_default("SPURS_MAXCONT", "3=5,13=3,15=5,16=5,17=5");
+        set_default("SPURS_IDLE_BACKOFF_MAX", "0");
         set_default("SPU_REJOIN", "204:9700-1C000");
         set_default("SPU_REJOIN_CALL", "1");
         set_default("LD_PERF_OVERLAY", "1");
