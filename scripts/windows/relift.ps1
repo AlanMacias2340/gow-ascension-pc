@@ -18,6 +18,11 @@ $Log   = Join-Path $Root "build\logs\relift-$What.log"
 
 if ($What -eq "jobmods") {
     $mods = Join-Path $Work "jobmods"
+    # Contiguous chunks lift as one C function (~10 -> ~12 fps in the level),
+    # and module 218's functions with a native version call it (ps3kit
+    # libs\spu_hle\gowa_drawcmd\native_functions.txt).
+    $env:LIFT_JOBMODS_MERGE = "1"
+    $env:LIFT_NATIVE = Join-Path $Cfg.PS3KIT_DIR "libs\spu_hle\gowa_drawcmd\native_functions.txt"
     if ($Only) {
         # Lift one module in a scratch folder and copy only its sources over:
         # rewriting all of them would make every module recompile.
