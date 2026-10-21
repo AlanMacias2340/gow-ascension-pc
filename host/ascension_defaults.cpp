@@ -134,6 +134,10 @@ struct AscensionDefaults {
         set_default("SPURS_READY_LEVEL", "1");
         set_default("SPURS_MAXCONT", "3=5,13=3,15=5,16=5,17=5");
         set_default("SPURS_IDLE_BACKOFF_MAX", "0");
+        // SPU n on physical core n + 1, alone: its contexts' local stores and
+        // lifted code stay in that core's caches. First level ~14.8 -> ~15.6
+        // fps, module 218's job 72 -> 65 us.
+        set_default("SPURS_PIN", "1");
         set_default("SPU_REJOIN", "204:9700-1C000");
         set_default("SPU_REJOIN_CALL", "1");
         set_default("LD_PERF_OVERLAY", "1");
