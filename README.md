@@ -20,7 +20,7 @@
 O Ascension traduz o código do jogo, do processador principal (PPU) e dos SPUs do PS3, para C++ e o compila para o seu PC, sobre o runtime do [ps3recomp](https://github.com/sp00nznet/ps3recomp). Não é um emulador: é o próprio jogo, recompilado. É irmão do [Sparta](https://github.com/arnaldolima1/gow-ghost-of-sparta-pc) e do [Olympus](https://github.com/arnaldolima1/gow-chains-of-olympus-pc), que fazem o mesmo com os God of War de PSP.
 
 > [!WARNING]
-> **Um experimento: ainda não dá para jogar do começo ao fim.** O jogo chega ao primeiro nível, mas ainda lento (~9 fps). Só Windows por enquanto (o suporte ao macOS está pausado).
+> **Um experimento: ainda não dá para jogar do começo ao fim.** O jogo chega ao primeiro nível, mas ainda lento (~16-17 fps). Só Windows por enquanto (o suporte ao macOS está pausado).
 
 > [!IMPORTANT]
 > **Nenhum dado do jogo está incluído.** Você precisa da sua própria cópia, a **versão europeia `BCES-01741`** (1.00), tirada do seu disco. Ninguém aqui pode te dar o jogo ou chaves. Projeto de fãs, sem ligação com a Sony Interactive Entertainment ou a Santa Monica Studio.
@@ -31,7 +31,7 @@ Outubro de 2026, no Windows:
 
 - **Do boot ao primeiro nível:** telas de abertura, carregamento, menus de primeiro uso, cinemática de abertura (imagem e som sincronizados), menu principal e o primeiro nível, com o Kratos acorrentado.
 - **Dois renderizadores:** o RSX do [RPCS3](https://github.com/RPCS3/rpcs3) (Vulkan ou OpenGL), que desenha o jogo corretamente, e o *live draw* próprio do projeto (D3D12).
-- **Desempenho:** menu principal a ~28 fps; o primeiro nível ainda roda a ~9 fps. O limite é o código das SPUs recompilado, não a placa de vídeo.
+- **Desempenho:** menu principal a ~30 fps; o primeiro nível a ~16-17 fps (era ~9). O limite é o código das SPUs recompilado, não a placa de vídeo: o job de geometria por draw (módulo 218) é o maior custo, e está sendo reescrito como código nativo, validado contra jobs gravados do jogo, sem precisar rodá-lo.
 - **Launcher** em português, inglês e espanhol, com vídeo, controles, idioma, legendas e mods; **português do Brasil** com vozes e textos, montado a partir do seu disco americano.
 
 Ainda não há release. Os marcos estão em [docs/MILESTONES.md](docs/MILESTONES.md).

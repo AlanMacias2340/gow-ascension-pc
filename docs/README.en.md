@@ -20,7 +20,7 @@
 Ascension translates the game's code, for the PS3's main processor (PPU) and its SPUs, into C++ and compiles it for your PC, on top of the [ps3recomp](https://github.com/sp00nznet/ps3recomp) runtime. It is not an emulator: it is the game itself, recompiled. A sibling of [Sparta](https://github.com/arnaldolima1/gow-ghost-of-sparta-pc) and [Olympus](https://github.com/arnaldolima1/gow-chains-of-olympus-pc), which do the same for the PSP God of War games.
 
 > [!WARNING]
-> **An experiment: not playable from start to finish yet.** The game reaches the first level, but slowly (~9 fps). Windows only for now (macOS support is paused).
+> **An experiment: not playable from start to finish yet.** The game reaches the first level, but slowly (~16-17 fps). Windows only for now (macOS support is paused).
 
 > [!IMPORTANT]
 > **No game data is included.** You need your own copy, the **European release `BCES-01741`** (1.00), taken from your disc. Nobody here can give you the game or keys. A fan project, not affiliated with Sony Interactive Entertainment or Santa Monica Studio.
@@ -31,7 +31,7 @@ October 2026, on Windows:
 
 - **From boot to the first level:** intro screens, loading, first-use menus, the opening cinematic (picture and sound in sync), the main menu and the first level, with Kratos in chains.
 - **Two renderers:** [RPCS3](https://github.com/RPCS3/rpcs3)'s RSX (Vulkan or OpenGL), which draws the game correctly, and the project's own *live draw* (D3D12).
-- **Performance:** the main menu runs at ~28 fps; the first level still at ~9 fps. The limit is the recompiled SPU code, not the graphics card.
+- **Performance:** the main menu runs at ~30 fps; the first level at ~16-17 fps (it was ~9). The limit is the recompiled SPU code, not the graphics card: the per-draw geometry job (module 218) costs the most, and it is being rewritten as native code, checked against recorded game jobs without running the game.
 - **A launcher** in English, Portuguese and Spanish, with video, controls, language, subtitles and mods; **Brazilian Portuguese**, voices and text, built from your own US disc.
 
 No release yet. The milestones are in [MILESTONES.md](MILESTONES.md).

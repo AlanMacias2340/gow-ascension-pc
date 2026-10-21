@@ -24,3 +24,6 @@ What the game could do, and when.
 | 2026-10-19 | **RPCS3's RSX as the renderer** (Windows and macOS): the game's GPU/SPU post-process rounds paced on the game's own progress. |
 | 2026-10-19 | Main menu 12 → 28 fps on RPCS3's RSX: SPU transfers into surfaces the GPU protected were being dropped. |
 | 2026-10-19 | **Level textures correct:** IO space handed back on unmap, so the scenery's vertex streams no longer read the command buffer. |
+| 2026-10-20 | Level ~10 → ~15 fps: lifted SPU floats without the extended-range check (RPCS3's "approximate" rules), no local-store diagnostics in lifted code, contiguous job-module code lifted as one function, streamed code found by an index. |
+| 2026-10-21 | Level ~15 → ~16.7 fps: each SPU on its own core, the main PPU thread on core 0. |
+| 2026-10-21 | **SPU job replay:** recorded game jobs rerun outside the game and checked byte for byte by what they write, with timing and profiling. Module 218 (per-draw geometry) decoded: index decompression and position transform written natively, identical on the recorded jobs; the rest of the job goes native next. |
