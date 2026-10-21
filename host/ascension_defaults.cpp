@@ -138,6 +138,9 @@ struct AscensionDefaults {
         // lifted code stay in that core's caches. First level ~14.8 -> ~15.6
         // fps, module 218's job 72 -> 65 us.
         set_default("SPURS_PIN", "1");
+        // The main PPU thread on core 0, which SPURS_PIN leaves free: it
+        // waits on the SPUs and kicks their next jobs. ~15.8 -> ~16.7 fps.
+        set_default("PS3_PIN_PPU", "1");
         set_default("SPU_REJOIN", "204:9700-1C000");
         set_default("SPU_REJOIN_CALL", "1");
         set_default("LD_PERF_OVERLAY", "1");
