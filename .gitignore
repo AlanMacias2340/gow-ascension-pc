@@ -25,5 +25,6 @@ scratch/
 # Local build settings (scripts read them; never committed).
 /.env
 /.env.*
+/.venv/
 
 file-game/*
