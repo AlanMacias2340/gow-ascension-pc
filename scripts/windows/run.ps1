@@ -54,7 +54,6 @@ if ($Menu) {
     $pad = if ($Level) { "14:0x4000,15:0x0000,24:0x4000,25:0x0000,27:0x4000,28:0x0000,30:0x4000,31:0x0000,33:0x4000,34:0x0000" }
            else { "14:0x4000,15:0x0000" }
     $menuEnv = @{ PAD_SCRIPT = $pad }
-    if ($Rpcs3) { $menuEnv["PS3_RSX"] = "rpcs3" }
     $gen = Join-Path $env:APPDATA "ascension-launcher\generated"
     if (Test-Path $gen) { $menuEnv["PS3_MODS"] = $gen } else { Write-Host "no launcher mods at $($gen): the intro screens will play" }
     if ($Env -is [string]) { foreach ($k in $menuEnv.Keys) { $Env += "$k=$($menuEnv[$k]);" } }
@@ -75,7 +74,9 @@ if ($Env -is [string]) {
     $h = @{}
     foreach ($kv in ($Env -split ";")) { if ($kv -match "^\s*([^=]+)=(.*)$") { $h[$Matches[1].Trim()] = $Matches[2] } }
     $Env = $h
-}
+} elseif (-not $Menu) { $Env = $Env.Clone() }
+# -Rpcs3 holds for every run, not only -Menu/-Level ones.
+if ($Rpcs3 -and -not $Env.ContainsKey("PS3_RSX")) { $Env["PS3_RSX"] = "rpcs3" }
 # The game inherits this process's environment; restore it afterwards.
 $saved = @{}
 foreach ($k in $Env.Keys) { $saved[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, [string]$Env[$k]) }
